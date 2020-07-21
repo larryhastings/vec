@@ -627,6 +627,9 @@ class Vector2(metaclass=Vector2Metaclass):
 
     def polar(self):
         return (self.r, self.theta)
+    
+    def cartesian(self):
+        return (self.x, self.y)
 
     def lerp(self, other, ratio):
         assert self._validate()
