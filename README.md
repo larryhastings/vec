@@ -2,7 +2,7 @@
 
 ## A reasonable, performant 2D vector object for games
 
-##### Copyright 2019-2020 by Larry Hastings
+##### Copyright 2019-2023 by Larry Hastings
 
 ## Overview
 
@@ -48,11 +48,12 @@ operations externally to the vector objects, or they incur the
 overhead and cumulative error of translating to polar and
 back again with every operation.
 
-`vec.Vector2` avoids all these problems.  `vec.Vector2` objects
-are immutable,
-they support vectors defined with either polar or cartesian coordinates,
-and
-they strictly use radians for polar operations.
+`vec.Vector2` avoids all these problems:
+
+* `vec.Vector2` objects are immutable,
+* they support vectors defined with either polar or cartesian coordinates,
+  and
+* they strictly use radians for polar coordinates.
 
 ## The Conceptual Model
 
@@ -85,18 +86,19 @@ polar coordinates:
 prints `1.5707963267948966 1.0`.  That first number is π/2 (approximately).
 
 Conversely, you can also define `vec.Vector2` objects using polar
-coordinates, and then ask for its cartesian coordinates:
+coordinates, and then ask it for its cartesian coordinates:
 
     v2 = vec.Vector2(r=1, theta=1.5707963267948966)
     print(v2.x, v2.y)
 
 This prints `6.123233995736766e-17 1.0`.  Conceptually this should
-print `0.0, 1.0`--but `math.pi` is only an approximation, which means
-sadly our result is off by an infinitesimal amount.
+print `0.0, 1.0`--but `math.pi` is only an approximation, which means,
+sadly, that our result has an infinitesimal error.
 
 ### Implementation Details
 
-Internally `vec.Vector2` objects are either "cartesian" or "polar".
+Internally `vec.Vector2` objects are either "cartesian", "polar",
+or both.
 "cartesian" vector objects are defined in terms of `x` and `y`;
 "polar" vector objects are defined in terms of `r` and `theta`.
 All other attributes are lazily computed as needed.
@@ -105,7 +107,7 @@ All other attributes are lazily computed as needed.
 to implement this lazy computation.  Only the known values of the
 vector are set when it's created.  If the user refers to an attribute
 that hasn't been computed yet, Python will call `vec.Vector2.__getattr__()`,
-which computes and then sets that value.  Future references to that
+which computes, caches, and returns that value.  Future references to that
 attribute skip this mechanism and simply return the cached value, which
 is only as expensive as an attribute lookup on a conventional object.
 
@@ -113,18 +115,17 @@ Operations on `vec.Vector2` objects compute their result
 using the cheapest approach.  If you have a `vec.Vector2` object
 defined using polar coordinates, and you call `.rotate()` or `.scale()`
 on it, all the math is done in the polar domain.  On the other
-hand, adding vectors is always done in the cartesian domain, so
-if you add a polar vector to any other vector, its cartesian
-coordinates will be computed--and the resulting vector will always
+hand, adding vectors is *almost* always done in the cartesian domain,
+so if you add a polar vector to any other vector, its cartesian
+coordinates will likely be computed--and the resulting vector will always
 be defined using cartesian coordinates.
 
-Actually, that last statement isn't always true.  There's a special
-case for adding two polar vectors which have the exact same `theta`:
-just add their `r` values. That approach is much cheaper than
-converting to cartesian, and more precise as well, returning a vector
-defined using polar coordinates!  `vec.Vector2` takes advantage of
-many such serendipities, computing your vectors as cheaply and accurately
-as possible.
+What's the exception?  There's a special case for adding two polar vectors
+which have the exact same `theta`: just add their `r` values.
+That approach is much cheaper than converting to cartesian,
+and more precise as well, returning a vector defined using polar
+coordinates!  `vec.Vector2` takes advantage of many such serendipities,
+computing your vectors as cheaply and accurately as possible.
 
 
 ## The API
@@ -137,23 +138,30 @@ few of these arguments as you like; however, you *must* pass in
 Any attributes not passed in at construction time will be lazily
 computed at the time they are evaluated.
 
-(`vec.Vector2` only does *some* validation of its arguments.
+You can also pass in a single object which will initialize the
+vector.  Supported objects include:
+
+* an existing `vec.Vector2` object (just returns that object)
+* an object which has `.x` and `.y` attributes
+* an ordered iterable object with exactly two elements
+
+`vec.Vector2` only does *some* validation of its arguments.
 It ensures that `r` and `theta` are normalized.  However,
 it doesn't check that `(x, y)` and `(r, theta)` describe the
 same vector.
 If you pass in `x` and `y`, and a `theta` and `r` that don't
 match, you'll get back the `vec.Vector2` that you asked for.
-Good luck.)
+Good luck.
 
 `vec.Vector2` objects support five attributes:
 `x`, `y`, `r`, `theta`, and `r_squared`.  It doesn't matter whether
-the object was defined with cartesian or polar coordinates; these
-all work.  `r_squared` is equivalent to `r*r` but it's much cheaper
-to compute based on cartesian coordinates.
+the object was defined with cartesian or polar coordinates, they
+will all work.  `r_squared` is equivalent to `r*r` but it's much
+cheaper to compute based on cartesian coordinates.
 
-`vec.Vector2` objects support the *iterator protocol.*  You can call
-`len()` on `vec.Vector2` objects--and it'll always return 2.
-You can also iterate over them,
+`vec.Vector2` objects support the *iterator protocol.*
+`len()` on a `vec.Vector2` object will always return 2.
+You can also iterate over a `vec.Vector2` object,
 which will yield the `x` and `y` attributes in that order.
 
 `vec.Vector2` objects support the *sequence protocol.*  You can subscript
@@ -178,6 +186,9 @@ vectors evaluate to `True`.
    (This may not always be the case due to compounding floating-point errors.)
 * `v1 == v2` is `True` if the two vectors are *exactly* the same, and `False` otherwise.
 * `v1 != v2` is `False` if the two vectors are *exactly* the same, and `True` otherwise.
+* `v[0] == v.x`
+* `v[1] == v.y`
+* `list(v) == [v.x, v.y]`
 
 `vec.Vector2` objects support the following methods:
 
@@ -221,6 +232,18 @@ to the scalar ratio `ratio`.  `ratio` should be a value between (and including) 
 If `ratio` is `0`, this returns `self`.  If `ratio` is `1`, this returns `other`.
 If `ratio` is `0.4`, this returns `(self * 0.6) + (other * 0.4)`.
 
+`vec.Vector2.slerp(other, ratio)`
+
+Returns a vector representing a spherical interpolation between `self` and `other`, according
+to the scalar ratio `ratio`.  `ratio` should be a value between (and including) `0` and `1`.
+If `ratio` is `0`, this returns `self`.  If `ratio` is `1`, this returns `other`.
+
+`vec.Vector2.nlerp(other, ratio)`
+
+Returns a vector representing a normalized linear interpolation between `self` and `other`,
+according to the scalar ratio `ratio`.  `ratio` should be a value between (and including)
+`0` and `1`.  If `ratio` is `0`, this returns `self`.  If `ratio` is `1`, this returns `other`.
+
 `vec.vector2_zero`
 
 The immutable, eternal "zero" `vec.Vector2` vector object.
@@ -233,3 +256,58 @@ The immutable, eternal "zero" `vec.Vector2` vector object.
 Mathematically-speaking, the zero vector when expressed in polar coordinates
 doesn't have a defined angle.  Therefore `vec` defines its zero vector as
 having an angle of `None`.
+
+
+## Extending vec to handle other types
+
+`vec` does some input verification on its inputs.
+Coordinates--`x`, `y`, `r`, `theta`--are required to be
+either `int` or `long`.
+(Technically `theta` can also be `None`.)  This best serves
+the intended use case of `vec` as a 2D vector library for
+game programming in Python.
+
+If you want to experiment with `vec` for other use cases,
+you may want `vec` to permit other types to be valid
+coordinates.  `vec` provides a simple mechanism to allow
+this.  Simply call:
+
+```
+    vec.permit_coordinate_type(T)
+```
+
+before creating your vector, passing in the type you want
+to use as a coordinate as `T`, and `vec` will now accept
+objects of that type as coordinates.
+
+Note that the types you extend `vec` with in this manner
+should behave like numeric types, like `int` and `float`.
+
+
+## Changelog
+
+**0.6** *2023/06/4*
+
+A major improvement!
+
+* `vec` now has a proper test suite.
+* `vec` now passes its test suite with 100% coverage.
+* `vec` explicitly supports Python 3.6+.
+* Added more shortcut optimizations, e.g. rotating a cartesian vector by a multiple of `pi/2`.
+* Tightened up the metaclass `__call__` logic a great deal.
+* Implemented `vec.Vector2.slerp`, and added `vec.Vector2.nlerp`.
+* Allowed `vec.permit_coordinate_type`, to allow extending the
+  set of permissible types for coordinates.
+* Internal details:
+
+    - Now cache `_cartesian` and `_hash` internally, as well as `_polar`.
+      (A vector can have a complete set of both cartesian and polar coordinates,
+      so it's nice to know everything that's available--that can make some
+      operations faster.)
+
+* Bugfix: `vec.Vector2.dot()` was simply wrong, it was adding where it should
+  have been multiplying.  Fixes #3.
+
+**0.5** *2021/03/21*
+
+Initial version.

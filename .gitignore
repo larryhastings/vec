@@ -1,2 +1,4 @@
-vec/__pycache__
-tests/__pycache__
+__pycache__/
+dist/
+.coverage
+htmlcov/
