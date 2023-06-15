@@ -265,6 +265,10 @@ class VecTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 Vector2(**kwargs)
 
+        def raises_key(**kwargs):
+            with self.assertRaises(KeyError):
+                Vector2(**kwargs)
+
         equal = self.assertEqual
 
         #
@@ -296,12 +300,23 @@ class VecTests(unittest.TestCase):
         equal(Vector2(namespace), Vector2(3, 4))
 
         #
+        # x has a '__getitem__'
+        d = {'x': 33, 'y': 44}
+        equal(Vector2(d), Vector2(33, 44))
+        raises_key(x={1: 'b', 2: 'd'})
+        raises_value(x={'x': 33, 'y': 45, 'z': 22})
+        raises_value(x=d, y=45)
+        raises_value(x=d, r=22)
+        raises_value(x=d, theta=pi)
+        raises_value(x=d, r_squared=16)
+
+
+        #
         # x has an '__iter__'
         #
 
-        # must not be a set or dict
+        # must not be a set
         raises_type(x={1, 2})
-        raises_type(x={1: 'b', 2: 'd'})
 
         # nothing else should be set
         t4_5 = (4, 5)
@@ -314,6 +329,21 @@ class VecTests(unittest.TestCase):
         raises_value(x=l6_7, r=5)
         raises_value(x=l6_7, theta=5)
         raises_value(x=l6_7, r_squared=5)
+
+        i = iter([6, 7])
+        equal(Vector2(i), Vector2(6, 7))
+        i = iter([6, 7])
+        raises_value(x=i, y=5)
+        i = iter([6, 7])
+        raises_value(x=i, r=5)
+        i = iter([6, 7])
+        raises_value(x=i, theta=5)
+        i = iter([6, 7])
+        raises_value(x=i, r_squared=5)
+        i = iter([6, ])
+        raises_value(x=i)
+        i = iter([6, 7, 8])
+        raises_value(x=i)
 
         # must contain exactly two items
         raises_value(x=tuple())
@@ -400,9 +430,82 @@ class VecTests(unittest.TestCase):
     def test_from_polar(self):
         self.assertIs(Vector2.from_polar(0, None), vector2_zero)
 
-        for theta in (0, pi/3, pi/2, pi, 4*pi/3):
-            for r in range(1, 5):
-                self.assertEqual(Vector2.from_polar(r, theta), Vector2(r=r, theta=theta))
+        self.assertEqual(Vector2.from_polar(1, 0), Vector2(r=1, theta=0))
+        self.assertEqual(Vector2.from_polar(1, pi/3), Vector2(r=1, theta=pi/3))
+        self.assertEqual(Vector2.from_polar(1, pi/2), Vector2(r=1, theta=pi/2))
+        self.assertEqual(Vector2.from_polar(1, pi), Vector2(r=1, theta=pi))
+
+        self.assertEqual(Vector2.from_polar(2, 0), Vector2(r=2, theta=0))
+        self.assertEqual(Vector2.from_polar(2, pi/3), Vector2(r=2, theta=pi/3))
+        self.assertEqual(Vector2.from_polar(2, pi/2), Vector2(r=2, theta=pi/2))
+        self.assertEqual(Vector2.from_polar(2, pi), Vector2(r=2, theta=pi))
+
+        with self.assertRaises(TypeError):
+            Vector2.from_polar(3)
+        with self.assertRaises(TypeError):
+            Vector2.from_polar(3, None)
+        with self.assertRaises(TypeError):
+            Vector2.from_polar(0, 0)
+        with self.assertRaises(TypeError):
+            Vector2.from_polar(1+2j, 5)
+        with self.assertRaises(TypeError):
+            Vector2.from_polar(1, 5+2j)
+
+        v1 = Vector2(1, 3)
+        self.assertIs(Vector2.from_polar(v1), v1)
+        with self.assertRaises(ValueError):
+            Vector2.from_polar(v1, theta=5)
+
+        namespace = types.SimpleNamespace(r=1, theta=pi)
+        self.assertEqual(Vector2.from_polar(namespace), Vector2(r=1, theta=pi))
+        with self.assertRaises(ValueError):
+            Vector2.from_polar(namespace, theta=2)
+
+        d = {'r':1, 'theta':pi}
+        self.assertEqual(Vector2.from_polar(d), Vector2(r=1, theta=pi))
+        with self.assertRaises(ValueError):
+            Vector2.from_polar(d, theta=2)
+        with self.assertRaises(KeyError):
+            Vector2.from_polar({1:2, 3:4})
+        d['funk'] = 'town'
+        with self.assertRaises(ValueError):
+            Vector2.from_polar(d)
+
+        iterable = [1, pi]
+        self.assertEqual(Vector2.from_polar(iterable), Vector2(r=1, theta=pi))
+        with self.assertRaises(ValueError):
+            Vector2.from_polar(iterable, theta=2)
+        with self.assertRaises(ValueError):
+            Vector2.from_polar([1])
+        with self.assertRaises(ValueError):
+            Vector2.from_polar([1, pi, 5])
+
+        iterable = (1, pi)
+        self.assertEqual(Vector2.from_polar(iterable), Vector2(r=1, theta=pi))
+        with self.assertRaises(ValueError):
+            Vector2.from_polar(iterable, theta=2)
+        with self.assertRaises(ValueError):
+            Vector2.from_polar((1,))
+        with self.assertRaises(ValueError):
+            Vector2.from_polar((1, pi, 5))
+
+        s = set((1, pi))
+        with self.assertRaises(TypeError):
+            Vector2.from_polar(s)
+
+        i = iter((1, pi))
+        self.assertEqual(Vector2.from_polar(i), Vector2(r=1, theta=pi))
+        i = iter((1, pi))
+        with self.assertRaises(ValueError):
+            Vector2.from_polar(i, theta=2)
+        i = iter((1, pi, 55))
+        with self.assertRaises(ValueError):
+            Vector2.from_polar(i)
+
+
+        self.assertEqual(Vector2.from_polar({'r': 33, 'theta': 55}), Vector2(r=33, theta=55))
+
+
 
     def test_vector_math(self):
         def base_test(v, x, y, r_squared, theta):
@@ -450,7 +553,13 @@ class VecTests(unittest.TestCase):
         self.assertEqual(vec.normalize_polar(3, pi/2), (3, pi/2))
         self.assertEqual(vec.normalize_polar(-3, pi/2), (3, -pi/2))
 
-        self.assertEqual(vec.normalize_polar(0, pi/2), (0, None))
+        self.assertEqual(vec.normalize_polar(0, None), (0, None))
+
+        with self.assertRaises(TypeError):
+            vec.normalize_polar(3, None)
+
+        with self.assertRaises(TypeError):
+            vec.normalize_polar(0, pi)
 
     def test_repr(self):
         def test(s, **kwargs):

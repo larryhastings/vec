@@ -70,6 +70,8 @@ iterables, and objects that support `x` and `y` attributes all work fine:
     vec.Vector2(x=0, y=1)
     vec.Vector2((0, 1))
     vec.Vector2([0, 1])
+    vec.Vector2(iter([0, 1]))
+    vec.Vector2({'x':0, 'y':1})
     vec.Vector2(types.SimpleNamespace(x=0, y=1))
 
 All these define the same vector.  That last example is there to demonstrate
@@ -286,7 +288,18 @@ should behave like numeric types, like `int` and `float`.
 
 ## Changelog
 
-**0.6** *2023/06/4*
+**0.6.1** *2023/06/14*
+
+* Enhanced the `Vector2` constructor: now it also accepts
+  mappings.  The mapping must have exactly two elements,
+  `x` and `y`.
+* Enhanced `Vector2.from_polar`.  It now accepts all the same
+  stuff as the `Vector2` constructor: `Vector2` objects,
+  namespaces, mappings, and iterables.  Where it examines
+  names (attributes, keys) it naturally uses `r` and `theta`
+  instead of `x` and `y`.
+
+**0.6** *2023/06/14*
 
 A major improvement!
 

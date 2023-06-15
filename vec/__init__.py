@@ -38,6 +38,8 @@
 #          into its own function, driving it with every value,
 #          and observing what it does
 #        * rewrite exception messages to need .format
+#   * Vector2 constructor: allow reading 'r', 'theta', and 'r_squared'
+#     from namespaces and mappings.  still be strict about it for mappings.
 #
 #   * Rect2
 #   * Vector3
@@ -51,7 +53,7 @@ and performant enough for use in video games.
 from math import acos, atan2, cos, pi, sin, sqrt, tau
 from collections.abc import Iterable, Set, Mapping
 
-__version__ = "0.6"
+__version__ = "0.6.1"
 
 
 pi_over_two = pi/2
@@ -72,17 +74,21 @@ def normalize_angle(theta):
         theta += tau
     return theta
 
+def negate_angle(theta):
+    return normalize_angle(theta - pi)
 
 def normalize_polar(r, theta):
     if r == 0:
-        return 0, None
+        if theta is not None:
+            raise TypeError(f"normalize_polar: theta is {theta}, must be None when r is 0")
+        return (0, None)
+
+    if theta is None:
+        raise TypeError(f"normalize_polar: theta is None, can't be None when r is {r}")
     if r < 0:
         r = -r
         theta = theta - pi
     return r, normalize_angle(theta)
-
-def negate_angle(theta):
-    return normalize_angle(theta + pi)
 
 #
 # All these return vector2_zero:
@@ -103,7 +109,8 @@ def negate_angle(theta):
 #   Vector2(r=1, theta=math.pi/2)
 #
 
-_invalid_types_for_iterable_x = (Set, Mapping)
+# we check mappings separately
+_invalid_types_for_iterable = (Set, Mapping)
 permitted_coordinate_types = ()
 
 def permit_coordinate_type(t):
@@ -138,38 +145,6 @@ class Vector2Metaclass(type):
         x_source = "x"
         y_source = "y"
 
-        if x is not _sentinel:
-            # handle x if it's a special object
-            if isinstance(x, Vector2):
-                if (y is not _sentinel) or (r is not _sentinel) or (theta is not _sentinel) or (r_squared is not _sentinel):
-                    raise ValueError(f"{self.__name__}: when x is an object, you must not specify y, r, or theta")
-                return x
-            elif (hasattr(x, 'x') and hasattr(x, 'y')):
-                if (y is not _sentinel) or (r is not _sentinel) or (theta is not _sentinel) or (r_squared is not _sentinel):
-                    raise ValueError(f"{self.__name__}: when x is an object, you must not specify y, r, or theta")
-                x_source = "x.x"
-                y_source = "x.y"
-                y = x.y
-                x = x.x
-            elif hasattr(x, "__iter__"):
-                if isinstance(x, _invalid_types_for_iterable_x):
-                    raise TypeError(f"{self.__name__}: if x is an iterable, it must be ordered, not {x.__class__.__name__}")
-                if (y is not _sentinel) or (r is not _sentinel) or (theta is not _sentinel) or (r_squared is not _sentinel):
-                    raise ValueError(f"{self.__name__}: when x is an object, you must not specify y, r, or theta")
-                i = iter(x)
-                x_source = "x[0]"
-                y_source = "x[1]"
-                try:
-                    x = next(i)
-                    y = next(i)
-                except StopIteration:
-                    raise ValueError(f"{self.__name__}: if x is an iterable, it must contain exactly 2 items")
-                try:
-                    next(i)
-                    raise ValueError(f"{self.__name__}: if x is an iterable, it must contain exactly 2 items")
-                except StopIteration:
-                    pass
-
         x_is_not_set = x is _sentinel
         x_is_set = not x_is_not_set
 
@@ -189,6 +164,73 @@ class Vector2Metaclass(type):
         not_r_or_theta = r_is_not_set and theta_is_not_set
 
         r_squared_is_set = r_squared is not _sentinel
+
+        if x_is_set and (not isinstance(x, permitted_coordinate_types)):
+            # handle x if it's a special object
+            something_besides_x_is_set = y_is_set or r_is_set or theta_is_set or r_squared_is_set
+            if isinstance(x, Vector2):
+                if something_besides_x_is_set:
+                    raise ValueError(f"{self.__name__}: when x is an object, you must not specify y, r, or theta")
+                return x
+            # the while loop is here just so we can early-exit break out of processing.
+            # we never actually loop.
+            while True:
+                if hasattr(x, 'x') and hasattr(x, 'y'):
+                    if something_besides_x_is_set:
+                        raise ValueError(f"{self.__name__}: when x is an object, you must not specify y, r, or theta")
+                    x_source = "x.x"
+                    y_source = "x.y"
+                    y = x.y
+                    x = x.x
+                    not_x_or_y = y_is_not_set = False
+                    x_and_y = y_is_set = True
+                    x_is_set and y_is_set
+                    break
+
+                if hasattr(x, "__getitem__"):
+                    if something_besides_x_is_set:
+                        raise ValueError(f"{self.__name__}: when x is an object, you must not specify y, r, or theta")
+                    try:
+                        maybe_x = x['x']
+                        y = x['y']
+                        x_source = "x['x']"
+                        y_source = "x['y']"
+                        if len(x) != 2:
+                            raise ValueError(f"{self.__name__}: if x is a mapping, it must contain exactly 2 items")
+                        x = maybe_x
+                        not_x_or_y = y_is_not_set = False
+                        x_and_y = y_is_set = True
+                        x_is_set and y_is_set
+                        break
+                    except KeyError:
+                        raise KeyError(f"{self.__name__}: if x is an mapping, it must contain elements 'x' and 'y'") from None
+                    except TypeError:
+                        pass
+
+                if hasattr(x, "__iter__"):
+                    if isinstance(x, _invalid_types_for_iterable):
+                        raise TypeError(f"{self.__name__}: if x is an iterable, it must be ordered, not {x.__class__.__name__}")
+                    if something_besides_x_is_set:
+                        raise ValueError(f"{self.__name__}: when x is an object, you must not specify y, r, or theta")
+                    i = iter(x)
+                    x_source = "x[0]"
+                    y_source = "x[1]"
+                    try:
+                        x = next(i)
+                        y = next(i)
+                    except StopIteration:
+                        raise ValueError(f"{self.__name__}: if x is an iterable, it must contain exactly 2 items")
+                    try:
+                        next(i)
+                        raise ValueError(f"{self.__name__}: if x is an iterable, it must contain exactly 2 items")
+                    except StopIteration:
+                        pass
+                    not_x_or_y = y_is_not_set = False
+                    x_and_y = y_is_set = True
+                    x_is_set and y_is_set
+                    break
+
+                break
 
 
         if not_x_or_y and not_r_or_theta:
@@ -235,12 +277,7 @@ class Vector2Metaclass(type):
                 theta = normalize_angle(theta)
 
         if r_is_set and theta_is_set:
-            # normalize r
-            if r < 0:
-                r = -r
-                args['r'] = r
-                theta = negate_angle(theta)
-
+            r, theta = normalize_polar(r, theta)
             args['r'] = r
             args['theta'] = theta
         elif r_is_set:
@@ -371,7 +408,83 @@ class Vector2(metaclass=Vector2Metaclass):
         return f"{self.__class__.__name__}({text})"
 
     @classmethod
-    def from_polar(cls, r, theta):
+    def from_polar(cls, r, theta=_sentinel):
+        theta_is_not_set = theta is _sentinel
+        theta_is_set = not theta_is_not_set
+
+        r_source = "r"
+        theta_source = "theta"
+        if isinstance(r, permitted_coordinate_types):
+            if theta_is_not_set:
+                raise TypeError(f"{cls.__name__}() missing 1 required positional argument: 'theta'")
+        else:
+            if isinstance(r, Vector2):
+                if theta_is_set:
+                    raise ValueError(f"{cls.__name__}.from_polar: when r is an object, you must not specify theta")
+                return r
+            while True:
+                if hasattr(r, 'r') and hasattr(r, 'theta'):
+                    if theta_is_set:
+                        raise ValueError(f"{cls.__name__}.from_polar: when r is an object, you must not specify theta")
+                    r_source = "r.r"
+                    theta_source = "r.theta"
+                    theta = r.theta
+                    r = r.r
+                    break
+                if hasattr(r, "__getitem__"):
+                    if theta_is_set:
+                        raise ValueError(f"{cls.__name__}.from_polar: when r is an object, you must not specify theta")
+                    try:
+                        maybe_r = r['r']
+                        theta = r['theta']
+                        r_source = "r['r']"
+                        theta_source = "r['theta']"
+                        if len(r) != 2:
+                            raise ValueError(f"{cls.__name__}: if r is a mapping, it must contain exactly 2 items")
+                        r = maybe_r
+                        break
+                    except KeyError:
+                        raise KeyError(f"{cls.__name__}: if r is an mapping, it must contain elements 'r' and 'theta'") from None
+                    except TypeError:
+                        pass
+
+                if hasattr(r, "__iter__"):
+                    if isinstance(r, _invalid_types_for_iterable):
+                        raise TypeError(f"{cls.__name__}.from_polar: if r is an iterable, it must be ordered, not {r.__class__.__name__}")
+                    if theta_is_set:
+                        raise ValueError(f"{cls.__name__}.from_polar: when r is an object, you must not specify theta")
+                    i = iter(r)
+                    r_source = "r[0]"
+                    theta_source = "r[1]"
+                    try:
+                        r = next(i)
+                        theta = next(i)
+                    except StopIteration:
+                        raise ValueError(f"{cls.__name__}.from_polar: if r is an iterable, it must contain exactly 2 items")
+                    try:
+                        next(i)
+                        raise ValueError(f"{cls.__name__}.from_polar: if r is an iterable, it must contain exactly 2 items")
+                    except StopIteration:
+                        pass
+                    break
+                break
+
+        if not isinstance(r, permitted_coordinate_types):
+            raise TypeError(f"{cls.__name__}.from_polar: {r_source} must be int or float, not {r}")
+
+        if theta is None:
+            if r:
+                raise TypeError(f"{cls.__name__}.from_polar: {theta_source} is {theta}, must not be None when {r_source} != 0")
+            return vector2_zero
+
+        if not isinstance(theta, permitted_coordinate_types):
+            raise TypeError(f"{cls.__name__}.from_polar: {theta_source} must be int, float, or None, not {theta}")
+        # we already know theta is not None
+        if not r:
+            raise TypeError(f"{cls.__name__}.from_polar: {theta_source} is {theta}, must be None when {r_source}=0")
+
+        r, theta = normalize_polar(r, theta)
+
         return cls(r=r, theta=theta)
 
     def polar(self):
