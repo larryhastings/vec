@@ -61,8 +61,7 @@ places = 14
 class VecTests(unittest.TestCase):
 
     def assertAlmostEqualVector(self, v1, v2):
-        self.assertAlmostEqual(v1.x, v2.x, places=places)
-        self.assertAlmostEqual(v1.y, v2.y, places=places)
+        self.assertTrue(v1.almost_equal(v2, places=places))
 
     # if everything is broken, fix this first!
     def test_eq(self):
@@ -832,6 +831,35 @@ class VecTests(unittest.TestCase):
         self.assertEqual(vector2_zero.polar(), (0, None))
         self.assertEqual(Vector2(1, 0).polar(), (1, 0))
         self.assertEqual(Vector2(-1, 0).polar(), (1, -pi))
+
+    def test_almost_equal(self):
+        v1 = Vector2(0.99991111, 0)
+        v2 = Vector2(0.99992222, 0)
+        self.assertTrue(v1.almost_equal(v2, 1))
+        self.assertTrue(v1.almost_equal(v2, 2))
+        self.assertTrue(v1.almost_equal(v2, 3))
+        self.assertTrue(v1.almost_equal(v2, 4))
+        self.assertFalse(v1.almost_equal(v2, 5))
+        self.assertFalse(v1.almost_equal(v2, 6))
+
+        v1 = Vector2(0, 0.99991111)
+        v2 = Vector2(0, 0.99992222)
+        self.assertTrue(v1.almost_equal(v2, 1))
+        self.assertTrue(v1.almost_equal(v2, 2))
+        self.assertTrue(v1.almost_equal(v2, 3))
+        self.assertTrue(v1.almost_equal(v2, 4))
+        self.assertFalse(v1.almost_equal(v2, 5))
+        self.assertFalse(v1.almost_equal(v2, 6))
+
+        v1 = Vector2(0.99991111, 0.99992222)
+        v2 = [0.99992222, 0.99991111]
+        self.assertTrue(v1.almost_equal(v2, 1))
+        self.assertTrue(v1.almost_equal(v2, 2))
+        self.assertTrue(v1.almost_equal(v2, 3))
+        self.assertTrue(v1.almost_equal(v2, 4))
+        self.assertFalse(v1.almost_equal(v2, 5))
+        self.assertFalse(v1.almost_equal(v2, 6))
+
 
     def test_scaled_to_length(self):
         vp_4_4 = Vector2(r=4, theta=4)

@@ -53,7 +53,7 @@ and performant enough for use in video games.
 from math import acos, atan2, cos, pi, sin, sqrt, tau
 from collections.abc import Iterable, Set, Mapping
 
-__version__ = "0.6.1"
+__version__ = "0.6.2"
 
 
 pi_over_two = pi/2
@@ -872,6 +872,20 @@ class Vector2(metaclass=Vector2Metaclass):
     ##
     ## methods
     ##
+
+    def almost_equal(self, other, places):
+        """
+        Returns True if 'self' and 'other' have matching
+        cartesian coordinates down to 'places' decimal places.
+        """
+        if not isinstance(other, Vector2):
+            other = self.__class__(other)
+        if (self is other) or (self == other):
+            return True
+
+        delta = self - other
+        # print(f"{places} :: {a} - {b} = {delta=} <= {fraction=} = {delta <= fraction}")
+        return (not round(delta.x, places)) and (not round(delta.y, places))
 
     def scaled(self, multiplier):
         """

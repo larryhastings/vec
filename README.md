@@ -16,6 +16,8 @@ Features:
 * Attributes of `Vector2` objects are lazily-computed where possible.
 * `Vector2` objects effortlessly support both cartesian and polar coordinates.
 
+`vec` supports Python 3.6+, and passes its unit test suite with 100% coverage.
+
 
 ## Why Another Vector Class?
 
@@ -143,23 +145,33 @@ computed at the time they are evaluated.
 You can also pass in a single object which will initialize the
 vector.  Supported objects include:
 
-* an existing `vec.Vector2` object (just returns that object)
-* an object which has `.x` and `.y` attributes
-* an ordered iterable object with exactly two elements
+* an existing `vec.Vector2` object (just returns that object),
+* an object which has `.x` and `.y` attributes,
+* a mapping object with exactly two keys, `'x'` and `'y'`, and
+* an ordered iterable object with exactly two elements.
 
 `vec.Vector2` only does *some* validation of its arguments.
 It ensures that `r` and `theta` are normalized.  However,
 it doesn't check that `(x, y)` and `(r, theta)` describe the
 same vector.
-If you pass in `x` and `y`, and a `theta` and `r` that don't
-match, you'll get back the `vec.Vector2` that you asked for.
-Good luck.
+If you pass in `x` and `y`, and also pass in a `theta` and `r`
+that don't match, you'll get back the `vec.Vector2` that you
+asked for.  Good luck!
+
+### Attributes
 
 `vec.Vector2` objects support five attributes:
-`x`, `y`, `r`, `theta`, and `r_squared`.  It doesn't matter whether
-the object was defined with cartesian or polar coordinates, they
-will all work.  `r_squared` is equivalent to `r*r` but it's much
+`x`, `y`, `r`, `theta`, and `r_squared`.  It doesn't matter
+whether the object was defined with cartesian or polar
+coordinates, they'll all work.
+
+`r_squared` is equivalent to `r*r`, but it's much
 cheaper to compute based on cartesian coordinates.
+There are a lot of use cases where `r_squared` works
+just as well as `r`, for example in collision detection
+in a game.
+
+### Operators and protocols
 
 `vec.Vector2` objects support the *iterator protocol.*
 `len()` on a `vec.Vector2` object will always return 2.
@@ -175,7 +187,8 @@ with boolean operators, and you may call `bool()` on them.  When used in
 a boolean context, the zero vector evaluates to `False`, and all other
 vectors evaluate to `True`.
 
-`vec.Vector2` objects are hashable.
+`vec.Vector2` objects are *hashable,* but they're not *ordered*.
+(You can't ask if one vector is *less than* another.)
 
 `vec.Vector2` objects support the following operators:
 
@@ -187,12 +200,46 @@ vectors evaluate to `True`.
 * `-v1` returns the opposite of `v1`, such that `v1 + (-v1)` should be the zero vector.
    (This may not always be the case due to compounding floating-point errors.)
 * `v1 == v2` is `True` if the two vectors are *exactly* the same, and `False` otherwise.
+  For consistency, this only compares cartesian coordinates.
+  Note that floating-point imprecision may result in two vectors that *should* be the
+  same failing an `==` check.
 * `v1 != v2` is `False` if the two vectors are *exactly* the same, and `True` otherwise.
+  For consistency, this only compares cartesian coordinates.
+  Note that floating-point imprecision may result in two vectors that *should* be the
+  same passing an `!=` check.
 * `v[0] == v.x`
 * `v[1] == v.y`
 * `list(v) == [v.x, v.y]`
 
+### Class methods
+
+`vec.from_polar(r, theta)`
+
+Constructs a `vec.Vector2` object from the two polar coordinates
+`r` and `theta`.
+
+You can also pass in a single object which will be used to
+initialize the vector.  Supported objects include:
+
+* an existing `vec.Vector2` object (just returns that object),
+* an object which has `.r` and `.theta` attributes,
+* a mapping object with exactly two keys, `'r'` and `'theta'`, and
+* an ordered iterable object with exactly two elements.
+
+If `r` is `0`, `theta` must be `None`, and `from_polar` will
+return the zero vector.  If `r` is not `0`, `theta` must not
+be `None`.
+
+### Methods
+
 `vec.Vector2` objects support the following methods:
+
+`vec.Vector2.almost_equal(other, places)`
+
+Returns `True` if the vector and `other` are the same vector,
+down to `places` decimal places.  Like the `Vector2` class's
+support for the `==` operator, the comparison is only done
+using cartesian coordinates, for consistency.
 
 `vec.Vector2.scaled(scalar)`
 
@@ -246,6 +293,8 @@ Returns a vector representing a normalized linear interpolation between `self` a
 according to the scalar ratio `ratio`.  `ratio` should be a value between (and including)
 `0` and `1`.  If `ratio` is `0`, this returns `self`.  If `ratio` is `1`, this returns `other`.
 
+### Constants
+
 `vec.vector2_zero`
 
 The immutable, eternal "zero" `vec.Vector2` vector object.
@@ -257,7 +306,9 @@ The immutable, eternal "zero" `vec.Vector2` vector object.
 
 Mathematically-speaking, the zero vector when expressed in polar coordinates
 doesn't have a defined angle.  Therefore `vec` defines its zero vector as
-having an angle of `None`.
+having an angle of `None`.  The zero vector must have `r` set to zero
+and `theta` set to `None`, and any other vector must have a non-zero `r`
+and `theta` set to a value besides `None`.
 
 
 ## Extending vec to handle other types
@@ -287,6 +338,11 @@ should behave like numeric types, like `int` and `float`.
 
 
 ## Changelog
+
+**0.6.2** *2023/06/14*
+
+* Added `Vector2.almost_equal`, which supports testing
+  for slightly-inexact equality.
 
 **0.6.1** *2023/06/14*
 
