@@ -175,7 +175,7 @@ the distance between them--if it's less than a certain distance
 **R**, the two objects are colliding.  But computing the
 actual distance is expensive--it requires a time-consuming
 square root.  It's much cheaper to compute the distance-squared
-between the two points.  If that's less than **R^2**, the two
+between the two points.  If that's less than **R<sup>2</sup>**, the two
 objects are colliding.
 
 ### Operators and protocols
