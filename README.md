@@ -80,32 +80,30 @@ All these define the same vector.  That last example is there to demonstrate
 that `vec.Vector2` can create a vector based on any object with `x` and `y`
 attributes.
 
-Once you have a vector object, you can examine its attributes.
-Every `vec.Vector2` object can be queried for both cartesian and
-polar coordinates:
+Every `vec.Vector2` object supports both cartesian and polar coordinates.
+You can define a `vec.Vector2` using cartesian coordinates, then examine
+its polar coordinates.  This:
 
     v = vec.Vector2(0, 1)
     print(v.theta, v.r)
 
 prints `1.5707963267948966 1.0`.  That first number is π/2 (approximately).
 
-Conversely, you can also define `vec.Vector2` objects using polar
-coordinates, and then ask it for its cartesian coordinates:
+Conversely, you can define a `vec.Vector2` object using polar
+coordinates, then examine its cartesian coordinates:
 
-    v2 = vec.Vector2(r=1, theta=1.5707963267948966)
+    v2 = vec.Vector2(r=1, theta=math.pi/2)
     print(v2.x, v2.y)
 
 This prints `6.123233995736766e-17 1.0`.  Conceptually this should
-print `0.0, 1.0`--but `math.pi` is only an approximation, which means,
-sadly, that our result has an infinitesimal error.
+print `0.0, 1.0`--but `math.pi` is only an approximation, which sadly
+means our result has an infinitesimal error.
 
 ### Implementation Details
 
-Internally `vec.Vector2` objects are either "cartesian", "polar",
-or both.
-"cartesian" vector objects are defined in terms of `x` and `y`;
-"polar" vector objects are defined in terms of `r` and `theta`.
-All other attributes are lazily computed as needed.
+To define a valid `vec.Vector2` object, you must have a complete
+set of either cartesian or polar coordinates--either is sufficient.
+All other attributes will be lazily computed on demand.
 
 `vec.Vector2` objects use slots, and rely on `__getattr__`
 to implement this lazy computation.  Only the known values of the
@@ -129,7 +127,7 @@ which have the exact same `theta`: just add their `r` values.
 That approach is much cheaper than converting to cartesian,
 and more precise as well, returning a vector defined using polar
 coordinates!  `vec.Vector2` takes advantage of many such serendipities,
-computing your vectors as cheaply and accurately as possible.
+performing your vector math as cheaply and accurately as possible.
 
 
 ## The API
@@ -165,11 +163,20 @@ asked for.  Good luck!
 whether the object was defined with cartesian or polar
 coordinates, they'll all work.
 
-`r_squared` is equivalent to `r*r`, but it's much
-cheaper to compute based on cartesian coordinates.
-There are a lot of use cases where `r_squared` works
-just as well as `r`, for example in collision detection
-in a game.
+`r_squared` is equivalent to `r*r`.  But if you have
+a `vec.Vector2` object defined with cartesian coordinates,
+it's much cheaper to compute `r_squared` than `r`.
+And there are many use cases where `r_squared` works
+just as well as `r`.
+
+For example, consider collision detection in a game.  One
+way to decide whether two objects are colliding is to measure
+the distance between them--if it's less than a certain distance
+**R**, the two objects are colliding.  But computing the
+actual distance is expensive--it requires a time-consuming
+square root.  It's much cheaper to compute the distance-squared
+between the two points.  If that's less than **R^2**, the two
+objects are colliding.
 
 ### Operators and protocols
 
@@ -202,14 +209,16 @@ vectors evaluate to `True`.
 * `v1 == v2` is `True` if the two vectors are *exactly* the same, and `False` otherwise.
   For consistency, this only compares cartesian coordinates.
   Note that floating-point imprecision may result in two vectors that *should* be the
-  same failing an `==` check.
+  same failing an `==` check.  Consider using the `almost_equal` method, which allows
+  for some imprecision in its comparison.
 * `v1 != v2` is `False` if the two vectors are *exactly* the same, and `True` otherwise.
   For consistency, this only compares cartesian coordinates.
   Note that floating-point imprecision may result in two vectors that *should* be the
-  same passing an `!=` check.
-* `v[0] == v.x`
-* `v[1] == v.y`
-* `list(v) == [v.x, v.y]`
+  same passing an `!=` check.  Again, consider using the `almost_equal` method and
+  negating the results.
+* `v[0]` and `v.x` evaluate to the same number.
+* `v[1]` and `v.y` evaluate to the same number.
+* `list(v)` is the same as `[v.x, v.y]`.
 
 ### Class methods
 
@@ -279,7 +288,12 @@ Returns a 2-tuple of `(self.r, self.theta)`.
 Returns a vector representing a linear interpolation between `self` and `other`, according
 to the scalar ratio `ratio`.  `ratio` should be a value between (and including) `0` and `1`.
 If `ratio` is `0`, this returns `self`.  If `ratio` is `1`, this returns `other`.
-If `ratio` is `0.4`, this returns `(self * 0.6) + (other * 0.4)`.
+If `ratio` is between `0` and `1` non-inclusive, this returns a point on the line segment
+defined by the two endpoints `self` and `other`, with the point being `ratio` between `self`
+and `other`.  For example, if `ratio` is `0.4`, this returns `(self * 0.6) + (other * 0.4)`.
+
+Note that it's not an error to specify a `ratio` less than `0` or greater than `1`, and
+`ratio` is not clamped to this range.
 
 `vec.Vector2.slerp(other, ratio)`
 
@@ -287,11 +301,19 @@ Returns a vector representing a spherical interpolation between `self` and `othe
 to the scalar ratio `ratio`.  `ratio` should be a value between (and including) `0` and `1`.
 If `ratio` is `0`, this returns `self`.  If `ratio` is `1`, this returns `other`.
 
+Note that it's not an error to specify a `ratio` less than `0` or greater than `1`, and
+`ratio` is not clamped to this range.
+
+
 `vec.Vector2.nlerp(other, ratio)`
 
 Returns a vector representing a normalized linear interpolation between `self` and `other`,
 according to the scalar ratio `ratio`.  `ratio` should be a value between (and including)
 `0` and `1`.  If `ratio` is `0`, this returns `self`.  If `ratio` is `1`, this returns `other`.
+
+Note that it's not an error to specify a `ratio` less than `0` or greater than `1`, and
+`ratio` is not clamped to this range.
+
 
 ### Constants
 
