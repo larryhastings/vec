@@ -6,13 +6,14 @@
 
 ## Overview
 
-`vec` is a module currently containing one class: `Vector2`, a 2D
+`vec` is a module currently publishing one class: `Vector2`, a 2D
 vector object designed for game development.
 
 Features:
 
 * `Vector2` objects are immutable.
-* `Vector2` support all the usual features, including operator overloading.
+* `Vector2` support all the usual vector object features,
+  including operator overloading.
 * Attributes of `Vector2` objects are lazily-computed where possible.
 * `Vector2` objects effortlessly support both cartesian and polar coordinates.
 
@@ -21,15 +22,15 @@ Features:
 
 ## Why Another Vector Class?
 
-I've participated in three PyWeek gaming challenges.  In two of those three times,
-mid-week I wrote my own vector class out of sheer frustration.
+I've participated in four PyWeek gaming challenges.  And twice,
+mid-week, I wrote my own vector class out of sheer frustration.
 
-The biggest problem with most Python vector objects in is that they're mutable.
-Frankly this way lies madness.  Vector objects should be immutable--it
-just makes sense from an API perspective.  What if you set the position
-of some game-engine pawn to be a particular vector object, then modify
-that vector object?  Should the pawn update its position automatically--and if so,
-how is it supposed to know the value changed?
+The biggest problem with most Python vector objects in is that they're
+*mutable.* Frankly this way lies madness.  Vector objects should be
+immutable--it just makes sense from an API perspective.  What if you
+set the position of some game-engine pawn to be a particular vector
+object, then modify that vector object?  Should the pawn update its
+position automatically--and if so, how would it know the value changed?
 
 Similarly, some vector classes use degrees for polar coordinates
 instead of radians.
@@ -50,38 +51,38 @@ operations externally to the vector objects, or they incur the
 overhead and cumulative error of translating to polar and
 back again with every operation.
 
-`vec.Vector2` avoids all these problems:
+vec's `Vector2` avoids all these problems:
 
-* `vec.Vector2` objects are immutable,
-* they support vectors defined with either polar or cartesian coordinates,
+* `Vector2` objects are immutable,
+* they make polar and cartesian coordinates both first-class citizens,
   and
 * they strictly use radians for polar coordinates.
 
 ## The Conceptual Model
 
-`vec.Vector2` objects conceptually represent a vector.  They can be
-defined using either cartesian or polar coordinates, and any `vec.Vector2`
+`Vector2` objects conceptually represent a vector.  They can be
+defined using either cartesian or polar coordinates, and any `Vector2`
 can be queried for both its cartesian and polar coordinates.
 
 Most vector objects in games are defined using cartesian coordinates.
-`vec.Vector2` makes that easy, supporting any number of invocations
+`Vector2` makes that easy, supporting any number of invocations
 to create one.  Discrete parameters,
 iterables, and objects that support `x` and `y` attributes all work fine:
 
-    vec.Vector2(0, 1)
-    vec.Vector2(x=0, y=1)
-    vec.Vector2((0, 1))
-    vec.Vector2([0, 1])
-    vec.Vector2(iter([0, 1]))
-    vec.Vector2({'x':0, 'y':1})
-    vec.Vector2(types.SimpleNamespace(x=0, y=1))
+    Vector2(0, 1)
+    Vector2(x=0, y=1)
+    Vector2((0, 1))
+    Vector2([0, 1])
+    Vector2(iter([0, 1]))
+    Vector2({'x':0, 'y':1})
+    Vector2(types.SimpleNamespace(x=0, y=1))
 
 All these define the same vector.  That last example is there to demonstrate
-that `vec.Vector2` can create a vector based on any object with `x` and `y`
+that `Vector2` can create a vector based on any object with `x` and `y`
 attributes.
 
-Every `vec.Vector2` object supports both cartesian and polar coordinates.
-You can define a `vec.Vector2` using cartesian coordinates, then examine
+Every `Vector2` object supports both cartesian and polar coordinates.
+You can define a `Vector2` using cartesian coordinates, then examine
 its polar coordinates.  This:
 
     v = vec.Vector2(0, 1)
@@ -89,7 +90,7 @@ its polar coordinates.  This:
 
 prints `1.5707963267948966 1.0`.  That first number is π/2 (approximately).
 
-Conversely, you can define a `vec.Vector2` object using polar
+Conversely, you can define a `Vector2` object using polar
 coordinates, then examine its cartesian coordinates:
 
     v2 = vec.Vector2(r=1, theta=math.pi/2)
@@ -101,20 +102,20 @@ means our result has an infinitesimal error.
 
 ### Implementation Details
 
-To define a valid `vec.Vector2` object, you must have a complete
+To define a valid `Vector2` object, you must have a complete
 set of either cartesian or polar coordinates--either is sufficient.
 All other attributes will be lazily computed on demand.
 
-`vec.Vector2` objects use slots, and rely on `__getattr__`
+`Vector2` objects use slots, and rely on `__getattr__`
 to implement this lazy computation.  Only the known values of the
 vector are set when it's created.  If the user refers to an attribute
-that hasn't been computed yet, Python will call `vec.Vector2.__getattr__()`,
+that hasn't been computed yet, Python will call `Vector2.__getattr__()`,
 which computes, caches, and returns that value.  Future references to that
 attribute skip this mechanism and simply return the cached value, which
 is only as expensive as an attribute lookup on a conventional object.
 
-Operations on `vec.Vector2` objects compute their result
-using the cheapest approach.  If you have a `vec.Vector2` object
+Operations on `Vector2` objects compute their result
+using the cheapest approach.  If you have a `Vector2` object
 defined using polar coordinates, and you call `.rotate()` or `.scale()`
 on it, all the math is done in the polar domain.  On the other
 hand, adding vectors is *almost* always done in the cartesian domain,
@@ -126,16 +127,16 @@ What's the exception?  There's a special case for adding two polar vectors
 which have the exact same `theta`: just add their `r` values.
 That approach is much cheaper than converting to cartesian,
 and more precise as well, returning a vector defined using polar
-coordinates!  `vec.Vector2` takes advantage of many such serendipities,
+coordinates!  `Vector2` takes advantage of many such serendipities,
 performing your vector math as cheaply and accurately as possible.
 
 
 ## The API
 
-`vec.Vector2(x=None, y=None, *, r=None, theta=None, r_squared=None)`
+`Vector2(x=None, y=None, *, r=None, theta=None, r_squared=None)`
 
 <dl><dd>
-Constructs a `vec.Vector2` object.  You may pass in as many or as
+Constructs a `Vector2` object.  You may pass in as many or as
 few of these arguments as you like; however, you *must* pass in
 *either* both `x` and `y` *or* both `r` and `theta`.
 Any attributes not passed in at construction time will be lazily
@@ -144,29 +145,29 @@ computed at the time they are evaluated.
 You can also pass in a single object which will initialize the
 vector.  Supported objects include:
 
-* an existing `vec.Vector2` object (just returns that object),
+* an existing `Vector2` object (just returns that object),
 * an object which has `.x` and `.y` attributes,
 * a mapping object with exactly two keys, `'x'` and `'y'`, and
 * an ordered iterable object with exactly two elements.
 
-`vec.Vector2` only does *some* validation of its arguments.
+`Vector2` only does *some* validation of its arguments.
 It ensures that `r` and `theta` are normalized.  However,
 it doesn't check that `(x, y)` and `(r, theta)` describe the
 same vector.
 If you pass in `x` and `y`, and also pass in a `theta` and `r`
-that don't match, you'll get back the `vec.Vector2` that you
+that don't match, you'll get back the `Vector2` that you
 asked for.  Good luck!
 </dd></dl>
 
 ### Attributes
 
-`vec.Vector2` objects support five attributes:
+`Vector2` objects support five attributes:
 `x`, `y`, `r`, `theta`, and `r_squared`.  It doesn't matter
 whether the object was defined with cartesian or polar
 coordinates, they'll all work.
 
 `r_squared` is equivalent to `r*r`.  But if you have
-a `vec.Vector2` object defined with cartesian coordinates,
+a `Vector2` object defined with cartesian coordinates,
 it's much cheaper to compute `r_squared` than `r`.
 And there are many use cases where `r_squared` works
 just as well as `r`.
@@ -182,24 +183,24 @@ objects are colliding.
 
 ### Operators and protocols
 
-`vec.Vector2` objects support the *iterator protocol.*
-`len()` on a `vec.Vector2` object will always return 2.
-You can also iterate over a `vec.Vector2` object,
+`Vector2` objects support the *iterator protocol.*
+`len()` on a `Vector2` object will always return 2.
+You can also iterate over a `Vector2` object,
 which will yield the `x` and `y` attributes in that order.
 
-`vec.Vector2` objects support the *sequence protocol.*  You can subscript
-them, which behaves as if the `vec.Vector2` object is a tuple of length
+`Vector2` objects support the *sequence protocol.*  You can subscript
+them, which behaves as if the `Vector2` object is a tuple of length
 2 containing the `x` and `y` attributes.
 
-`vec.Vector2` objects also support the *boolean* protocol; you may use them
+`Vector2` objects also support the *boolean* protocol; you may use them
 with boolean operators, and you may call `bool()` on them.  When used in
 a boolean context, the zero vector evaluates to `False`, and all other
 vectors evaluate to `True`.
 
-`vec.Vector2` objects are *hashable,* but they're not *ordered*.
+`Vector2` objects are *hashable,* but they're not *ordered*.
 (You can't ask if one vector is *less than* another.)
 
-`vec.Vector2` objects support the following operators:
+`Vector2` objects support the following operators:
 
 * `v1 + v2` adds the two vectors together.
 * `v1 - v2` subtracts the right vector from the left vector.
@@ -226,13 +227,14 @@ vectors evaluate to `True`.
 
 `vec.from_polar(r, theta)`
 
-Constructs a `vec.Vector2` object from the two polar coordinates
+<dl><dd>
+Constructs a `Vector2` object from the two polar coordinates
 `r` and `theta`.
 
 You can also pass in a single object which will be used to
 initialize the vector.  Supported objects include:
 
-* an existing `vec.Vector2` object (just returns that object),
+* an existing `Vector2` object (just returns that object),
 * an object which has `.r` and `.theta` attributes,
 * a mapping object with exactly two keys, `'r'` and `'theta'`, and
 * an ordered iterable object with exactly two elements.
@@ -240,12 +242,13 @@ initialize the vector.  Supported objects include:
 If `r` is `0`, `theta` must be `None`, and `from_polar` will
 return the zero vector.  If `r` is not `0`, `theta` must not
 be `None`.
+</dd></dl>
 
 ### Methods
 
-`vec.Vector2` objects support the following methods:
+`Vector2` objects support the following methods:
 
-`vec.Vector2.almost_equal(other, places)`
+`Vector2.almost_equal(other, places)`
 
 <dl><dd>
 Returns `True` if the vector and `other` are the same vector,
@@ -254,37 +257,37 @@ support for the `==` operator, the comparison is only done
 using cartesian coordinates, for consistency.
 </dd></dl>
 
-`vec.Vector2.scaled(scalar)`
+`Vector2.scaled(scalar)`
 
 <dl><dd>
-Returns a new `vec.Vector2` object, equivalent to the original vector multiplied by that scalar.
+Returns a new `Vector2` object, equivalent to the original vector multiplied by that scalar.
 </dd></dl>
 
-`vec.Vector2.scaled_to_length(r)`
+`Vector2.scaled_to_length(r)`
 
 <dl><dd>
-Returns a new `vec.Vector2` object, equivalent to the original vector with its length set to `r`.
+Returns a new `Vector2` object, equivalent to the original vector with its length set to `r`.
 </dd></dl>
 
-`vec.Vector2.normalized()`
+`Vector2.normalized()`
 
 <dl><dd>
-Returns a new `vec.Vector2` object, equivalent to the original vector scaled to length 1.
+Returns a new `Vector2` object, equivalent to the original vector scaled to length 1.
 </dd></dl>
 
-`vec.Vector2.rotated(theta)`
+`Vector2.rotated(theta)`
 
 <dl><dd>
-Returns a new `vec.Vector2` object, equal to the original vector rotated by `theta` radians.
+Returns a new `Vector2` object, equal to the original vector rotated by `theta` radians.
 </dd></dl>
 
-`vec.Vector2.dot(other)`
+`Vector2.dot(other)`
 
 <dl><dd>
 Returns the "dot product" `self` • `other`.  This result is a scalar value, not a vector.
 </dd></dl>
 
-`vec.Vector2.cross(other)`
+`Vector2.cross(other)`
 
 <dl><dd>
 Returns the "cross product" `self` ⨯ `other`.  This result is a scalar value, not a vector.
@@ -295,13 +298,13 @@ of the two vectors, because that's what people actually want when they ask for t
 product" of two 2D vectors.
 </dd></dl>
 
-`vec.Vector2.polar()`
+`Vector2.polar()`
 
 <dl><dd>
 Returns a 2-tuple of `(self.r, self.theta)`.
 </dd></dl>
 
-`vec.Vector2.lerp(other, ratio)`
+`Vector2.lerp(other, ratio)`
 
 <dl><dd>
 Returns a vector representing a linear interpolation between `self` and `other`, according
@@ -315,7 +318,7 @@ Note that it's not an error to specify a `ratio` less than `0` or greater than `
 `ratio` is not clamped to this range.
 </dd></dl>
 
-`vec.Vector2.slerp(other, ratio)`
+`Vector2.slerp(other, ratio)`
 
 <dl><dd>
 Returns a vector representing a spherical interpolation between `self` and `other`, according
@@ -327,7 +330,7 @@ Note that it's not an error to specify a `ratio` less than `0` or greater than `
 </dd></dl>
 
 
-`vec.Vector2.nlerp(other, ratio)`
+`Vector2.nlerp(other, ratio)`
 
 <dl><dd>
 Returns a vector representing a normalized linear interpolation between `self` and `other`,
@@ -341,10 +344,10 @@ Note that it's not an error to specify a `ratio` less than `0` or greater than `
 
 ### Constants
 
-`vec.vector2_zero`
+`vector2_zero`
 
 <dl><dd>
-The immutable, eternal "zero" `vec.Vector2` vector object.
+The immutable, eternal "zero" `Vector2` vector object.
 `vec` guarantees that every zero vector is a reference to this object:
 
     >>> v = vec.Vector2(0, 0)
@@ -412,7 +415,7 @@ A major improvement!
 * `vec` explicitly supports Python 3.6+.
 * Added more shortcut optimizations, e.g. rotating a cartesian vector by a multiple of `pi/2`.
 * Tightened up the metaclass `__call__` logic a great deal.
-* Implemented `vec.Vector2.slerp`, and added `vec.Vector2.nlerp`.
+* Implemented `Vector2.slerp`, and added `Vector2.nlerp`.
 * Allowed `vec.permit_coordinate_type`, to allow extending the
   set of permissible types for coordinates.
 * Internal details:
@@ -422,7 +425,7 @@ A major improvement!
       so it's nice to know everything that's available--that can make some
       operations faster.)
 
-* Bugfix: `vec.Vector2.dot()` was simply wrong, it was adding where it should
+* Bugfix: `Vector2.dot()` was simply wrong, it was adding where it should
   have been multiplying.  Fixes #3.
 
 **0.5** *2021/03/21*
