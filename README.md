@@ -134,6 +134,7 @@ performing your vector math as cheaply and accurately as possible.
 
 `vec.Vector2(x=None, y=None, *, r=None, theta=None, r_squared=None)`
 
+<dl><dd>
 Constructs a `vec.Vector2` object.  You may pass in as many or as
 few of these arguments as you like; however, you *must* pass in
 *either* both `x` and `y` *or* both `r` and `theta`.
@@ -155,6 +156,7 @@ same vector.
 If you pass in `x` and `y`, and also pass in a `theta` and `r`
 that don't match, you'll get back the `vec.Vector2` that you
 asked for.  Good luck!
+</dd></dl>
 
 ### Attributes
 
@@ -245,46 +247,63 @@ be `None`.
 
 `vec.Vector2.almost_equal(other, places)`
 
+<dl><dd>
 Returns `True` if the vector and `other` are the same vector,
 down to `places` decimal places.  Like the `Vector2` class's
 support for the `==` operator, the comparison is only done
 using cartesian coordinates, for consistency.
+</dd></dl>
 
 `vec.Vector2.scaled(scalar)`
 
+<dl><dd>
 Returns a new `vec.Vector2` object, equivalent to the original vector multiplied by that scalar.
+</dd></dl>
 
 `vec.Vector2.scaled_to_length(r)`
 
+<dl><dd>
 Returns a new `vec.Vector2` object, equivalent to the original vector with its length set to `r`.
+</dd></dl>
 
 `vec.Vector2.normalized()`
 
+<dl><dd>
 Returns a new `vec.Vector2` object, equivalent to the original vector scaled to length 1.
+</dd></dl>
 
 `vec.Vector2.rotated(theta)`
 
+<dl><dd>
 Returns a new `vec.Vector2` object, equal to the original vector rotated by `theta` radians.
+</dd></dl>
 
 `vec.Vector2.dot(other)`
 
+<dl><dd>
 Returns the "dot product" `self` • `other`.  This result is a scalar value, not a vector.
+</dd></dl>
 
 `vec.Vector2.cross(other)`
 
+<dl><dd>
 Returns the "cross product" `self` ⨯ `other`.  This result is a scalar value, not a vector.
 
 *Note:* technically, there is no "cross product" defined for 2-dimensional vectors.
 In actuality this returns the "perpendicular dot product", or "perp dot product",
 of the two vectors, because that's what people actually want when they ask for the "cross
 product" of two 2D vectors.
+</dd></dl>
 
 `vec.Vector2.polar()`
 
+<dl><dd>
 Returns a 2-tuple of `(self.r, self.theta)`.
+</dd></dl>
 
 `vec.Vector2.lerp(other, ratio)`
 
+<dl><dd>
 Returns a vector representing a linear interpolation between `self` and `other`, according
 to the scalar ratio `ratio`.  `ratio` should be a value between (and including) `0` and `1`.
 If `ratio` is `0`, this returns `self`.  If `ratio` is `1`, this returns `other`.
@@ -294,31 +313,37 @@ and `other`.  For example, if `ratio` is `0.4`, this returns `(self * 0.6) + (ot
 
 Note that it's not an error to specify a `ratio` less than `0` or greater than `1`, and
 `ratio` is not clamped to this range.
+</dd></dl>
 
 `vec.Vector2.slerp(other, ratio)`
 
+<dl><dd>
 Returns a vector representing a spherical interpolation between `self` and `other`, according
 to the scalar ratio `ratio`.  `ratio` should be a value between (and including) `0` and `1`.
 If `ratio` is `0`, this returns `self`.  If `ratio` is `1`, this returns `other`.
 
 Note that it's not an error to specify a `ratio` less than `0` or greater than `1`, and
 `ratio` is not clamped to this range.
+</dd></dl>
 
 
 `vec.Vector2.nlerp(other, ratio)`
 
+<dl><dd>
 Returns a vector representing a normalized linear interpolation between `self` and `other`,
 according to the scalar ratio `ratio`.  `ratio` should be a value between (and including)
 `0` and `1`.  If `ratio` is `0`, this returns `self`.  If `ratio` is `1`, this returns `other`.
 
 Note that it's not an error to specify a `ratio` less than `0` or greater than `1`, and
 `ratio` is not clamped to this range.
+</dd></dl>
 
 
 ### Constants
 
 `vec.vector2_zero`
 
+<dl><dd>
 The immutable, eternal "zero" `vec.Vector2` vector object.
 `vec` guarantees that every zero vector is a reference to this object:
 
@@ -331,6 +356,7 @@ doesn't have a defined angle.  Therefore `vec` defines its zero vector as
 having an angle of `None`.  The zero vector must have `r` set to zero
 and `theta` set to `None`, and any other vector must have a non-zero `r`
 and `theta` set to a value besides `None`.
+</dd></dl>
 
 
 ## Extending vec to handle other types
