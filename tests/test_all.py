@@ -6,23 +6,12 @@
 # See LICENSE for license information.
 #
 
-import os.path
-from math import atan, pi, sqrt, tau
-import pathlib
-import sys
-import types
-
-
-import inspect
-import unittest
-
-
 def preload_local_vec():
     """
     Pre-load the local "vec" module, to preclude finding
     an already-installed one on the path.
     """
-    from os.path import abspath, dirname, isfile, join, normpath
+    import pathlib
     import sys
     argv_0 = pathlib.Path(sys.argv[0])
     vec_dir = argv_0.resolve().parent
@@ -44,7 +33,17 @@ def preload_local_vec():
     return vec_dir
 
 vec_dir = preload_local_vec()
+
+
+import inspect
+from math import atan, pi, sqrt, tau
+import os.path
+import pathlib
+import sys
+import types
+import unittest
 import vec
+
 from vec import Vector2, vector2_zero
 
 
