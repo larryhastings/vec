@@ -44,7 +44,7 @@ import types
 import unittest
 import vec
 
-from vec import Vector2, vector2_zero
+from vec import Vector2, vector2_zero, vector2_1_0, vector2_0_1, vector2_1_1
 
 
 class FalseSentinel:
@@ -158,7 +158,9 @@ class VecTests(unittest.TestCase):
         self.assertEqual(_cartesian, 2)
         self.assertFalse(_polar, 0)
 
-        vc.r_squared
+        # force vc to compute r_squared
+        _ = vc.r_squared
+
         x, y, r, theta, r_squared, _cartesian, _polar = get_raw_slots(vc)
         self.assertTrue(x and y)
         assertIsSentinel(r)
@@ -167,7 +169,9 @@ class VecTests(unittest.TestCase):
         self.assertEqual(_cartesian, 2)
         self.assertFalse(_polar, 0)
 
-        vc.r
+        # force vc to compute r
+        _ = vc.r
+
         x, y, r, theta, r_squared, _cartesian, _polar = get_raw_slots(vc)
         self.assertTrue(x and y)
         self.assertTrue(r)
@@ -176,7 +180,9 @@ class VecTests(unittest.TestCase):
         self.assertEqual(_cartesian, 2)
         self.assertEqual(_polar, 1)
 
-        vc.theta
+        # force vc to compute theta
+        _ = vc.theta
+
         x, y, r, theta, r_squared, _cartesian, _polar = get_raw_slots(vc)
         self.assertTrue(x and y)
         self.assertTrue(r)
@@ -194,7 +200,9 @@ class VecTests(unittest.TestCase):
         self.assertEqual(_cartesian, 0)
         self.assertEqual(_polar, 2)
 
-        vp.r_squared
+        # force vp to compute r_squared
+        _ = vp.r_squared
+
         x, y, r, theta, r_squared, _cartesian, _polar = get_raw_slots(vp)
         assertIsSentinel(x)
         assertIsSentinel(y)
@@ -204,7 +212,9 @@ class VecTests(unittest.TestCase):
         self.assertEqual(_cartesian, 0)
         self.assertEqual(_polar, 2)
 
-        vp.y
+        # force vp to compute y
+        _ = vp.y
+
         x, y, r, theta, r_squared, _cartesian, _polar = get_raw_slots(vp)
         assertIsSentinel(x)
         self.assertTrue(y)
@@ -214,7 +224,9 @@ class VecTests(unittest.TestCase):
         self.assertEqual(_cartesian, 1)
         self.assertEqual(_polar, 2)
 
-        vp.x
+        # force vp to compute x
+        _ = vp.x
+
         x, y, r, theta, r_squared, _cartesian, _polar = get_raw_slots(vp)
         self.assertTrue(x)
         self.assertTrue(y)
@@ -231,9 +243,7 @@ class VecTests(unittest.TestCase):
         r1 = Vector2(r=1, theta=5)
         self.assertIs(Vector2(r1), r1)
 
-    def test_zero_vectors(self):
-        three = Vector2(3, 1)
-        r1 = Vector2(r=1, theta=5)
+    def test_zero_vector(self):
 
         self.assertIs(Vector2(), vector2_zero)
         self.assertIs(Vector2(0, 0), vector2_zero)
@@ -241,14 +251,39 @@ class VecTests(unittest.TestCase):
         self.assertIs(Vector2([0, 0]), vector2_zero)
         self.assertIs(Vector2(types.SimpleNamespace(x=0, y=0)), vector2_zero)
         self.assertIs(Vector2(r=0, theta=None), vector2_zero)
+
+        three = Vector2(3, 1)
         self.assertIs((three - three), vector2_zero)
         self.assertIs((three + -three), vector2_zero)
         self.assertIs(three * 0, vector2_zero)
         self.assertIs(Vector2(r=0, theta=None), vector2_zero)
+
+        r1 = Vector2(r=1, theta=5)
         # (r1 + -r1) # doesn't work, we accumulate too much error
         self.assertIs((r1 - r1), vector2_zero)
         self.assertIs((r1 * 0), vector2_zero)
+
         self.assertIs(Vector2(vector2_zero), vector2_zero)
+
+    def test_vector2_1_0(self):
+        self.assertIs(Vector2(1, 0), vector2_1_0)
+        self.assertIs(Vector2((1, 0)), vector2_1_0)
+        self.assertIs(Vector2([1, 0]), vector2_1_0)
+        self.assertIs(Vector2(types.SimpleNamespace(x=1, y=0)), vector2_1_0)
+        self.assertIs(Vector2(r=1, theta=0), vector2_1_0)
+
+        self.assertIs(Vector2(vector2_1_0), vector2_1_0)
+        self.assertIs((vector2_1_0 * 3) - (vector2_1_0 * 2), vector2_1_0)
+
+    def test_vector2_0_1(self):
+        self.assertIs(Vector2(0, 1), vector2_0_1)
+        self.assertIs(Vector2((0, 1)), vector2_0_1)
+        self.assertIs(Vector2([0, 1]), vector2_0_1)
+        self.assertIs(Vector2(types.SimpleNamespace(x=0, y=1)), vector2_0_1)
+        self.assertIs(Vector2(r=1, theta=pi / 2), vector2_0_1)
+
+        self.assertIs(Vector2(vector2_0_1), vector2_0_1)
+        self.assertIs((vector2_0_1 * 3) - (vector2_0_1 * 2), vector2_0_1)
 
     def test_metaclass_call(self):
         # This test triggers every raise and every return
@@ -678,9 +713,9 @@ class VecTests(unittest.TestCase):
         test_mul(Vector2(1, 1, theta=pi/4), 2, Vector2(2, 2, theta=pi/4))
         test_mul(Vector2(1, 1, r_squared=2), 2, Vector2(2, 2, r_squared=4))
 
-        v=Vector2(1, 1, theta=1)
+        v=Vector2(1, 1, theta=pi / 4)
         multiplicand = -2
-        desired=Vector2(-2, -2, theta=1-pi)
+        desired=Vector2(-2, -2, theta=(5 * pi) / 4)
         test_mul(v, multiplicand, desired)
         computed = v * multiplicand
         self.assertEqual(v.theta - pi, desired.theta)

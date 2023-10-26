@@ -61,9 +61,11 @@ __version__ = "0.6.3"
 
 
 pi_over_two = pi/2
+pi_over_four = pi/4
 negative_pi = -pi
 negative_pi_over_two = -pi_over_two
 
+sqrt_2 = 2 ** 0.5
 
 
 def normalize_angle(theta):
@@ -188,7 +190,7 @@ class Vector2Metaclass(type):
                     x = x.x
                     not_x_or_y = y_is_not_set = False
                     x_and_y = y_is_set = True
-                    x_is_set and y_is_set
+                    # x_is_set and y_is_set
                     break
 
                 if hasattr(x, "__getitem__"):
@@ -204,7 +206,7 @@ class Vector2Metaclass(type):
                         x = maybe_x
                         not_x_or_y = y_is_not_set = False
                         x_and_y = y_is_set = True
-                        x_is_set and y_is_set
+                        # x_is_set and y_is_set
                         break
                     except KeyError:
                         raise KeyError(f"{self.__name__}: if x is an mapping, it must contain elements 'x' and 'y'") from None
@@ -231,7 +233,7 @@ class Vector2Metaclass(type):
                         pass
                     not_x_or_y = y_is_not_set = False
                     x_and_y = y_is_set = True
-                    x_is_set and y_is_set
+                    # x_is_set and y_is_set
                     break
 
                 break
@@ -255,14 +257,6 @@ class Vector2Metaclass(type):
             # but both must be set.
             if r_is_not_set or theta_is_not_set:
                 raise ValueError(f"{self.__name__}: you must specify r and theta together")
-
-        if x_is_set and y_is_set:
-            if (x == 1) and (y == 1):
-                return vector2_1_1
-            if (x == 1) and (y == 0):
-                return vector2_1_0
-            if (x == 0) and (y == 1):
-                return vector2_0_1
 
         args = {}
         if x_is_set:
@@ -323,6 +317,15 @@ class Vector2Metaclass(type):
                 raise TypeError(f"{self.__name__}: theta is {theta}, must not be None when vector=({x}, {y})")
             if r_squared_is_set and (not r_squared):
                 raise ValueError(f"{self.__name__}: r_squared is {r_squared}, must be > 0 when vector=({x}, {y})")
+
+            if (x == 1):
+                if (y == 1):
+                    return vector2_1_1
+                if not y:
+                    return vector2_1_0
+            elif (not x) and (y == 1):
+                return vector2_0_1
+
         else:
             assert r_and_theta
             # we already checked that theta and r agree.
@@ -340,6 +343,14 @@ class Vector2Metaclass(type):
 
             if r_squared_is_set and (not r_squared):
                 raise ValueError(f"{self.__name__}: r_squared is {r_squared}, must be > 0 when r is {r}")
+
+            if (r == 1):
+                if (theta == 0):
+                    return vector2_1_0
+                if (theta == pi_over_two):
+                    return vector2_0_1
+            elif (r == sqrt_2) and (theta == pi_over_four):
+                return vector2_1_1
 
         return super().__call__(**args)
 

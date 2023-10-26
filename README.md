@@ -347,7 +347,7 @@ Note that it's not an error to specify a `ratio` less than `0` or greater than `
 `vector2_zero`
 
 <dl><dd>
-The immutable, eternal "zero" `Vector2` vector object.
+The "zero" `Vector2` vector object.
 `vec` guarantees that every zero vector is a reference to this object:
 
     >>> v = vec.Vector2(0, 0)
@@ -359,6 +359,57 @@ doesn't have a defined angle.  Therefore `vec` defines its zero vector as
 having an angle of `None`.  The zero vector must have `r` set to zero
 and `theta` set to `None`, and any other vector must have a non-zero `r`
 and `theta` set to a value besides `None`.
+</dd></dl>
+
+`vector2_1_0`
+
+<dl><dd>
+A predefined `Vector2` vector object, equivalent to `Vector2(1, 0)`.
+When constructing a `Vector2` object that is exactly equivalent to this
+vector, the `Vector2` constructor will always return a reference to this
+vector:
+
+    >>> v = vec.Vector2(1, 0)
+    >>> v is vec.vector2_1_0
+    True
+    >>> v2 = vec.Vector2(r=1, theta=0)
+    >>> v2 is vec.vector2_1_0
+    True
+
+</dd></dl>
+
+`vector2_0_1`
+
+<dl><dd>
+A predefined `Vector2` vector object, equivalent to `Vector2(0, 1)`.
+When constructing a `Vector2` object that is exactly equivalent to this
+vector, the `Vector2` constructor will always return a reference to this
+vector:
+
+    >>> v = vec.Vector2(0, 1)
+    >>> v is vec.vector2_0_1
+    True
+    >>> v2 = vec.Vector2(r=1, theta=pi/2)
+    >>> v2 is vec.vector2_0_1
+    True
+
+</dd></dl>
+
+`vector2_1_1`
+
+<dl><dd>
+A predefined `Vector2` vector object, equivalent to `Vector2(1, 1)`.
+When constructing a `Vector2` object that is exactly equivalent to this
+vector, the `Vector2` constructor will always return a reference to this
+vector:
+
+    >>> v = vec.Vector2(1, 1)
+    >>> v is vec.vector2_1_1
+    True
+    >>> v2 = vec.Vector2(r=2 ** 0.5, theta=pi/4)
+    >>> v2 is vec.vector2_1_1
+    True
+
 </dd></dl>
 
 
@@ -389,6 +440,19 @@ should behave like numeric types, like `int` and `float`.
 
 
 ## Changelog
+
+**0.6.3** *2023/10/26*
+
+* Added three new predefined vectors:
+
+  * `vector2_1_0` is `Vector2(1, 0)`
+  * `vector2_0_1` is `Vector2(0, 1)`
+  * `vector2_1_1` is `Vector2(1, 1)`
+
+  Any expression that results in a vector that would be exactly
+  equal to one of these vectors is guaranteed to return the
+  predefined vector.  `Vector2(1, 0) is vector2_1_0` evaluates
+  to `True`.
 
 **0.6.2** *2023/06/14*
 
