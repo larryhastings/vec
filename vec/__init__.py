@@ -14,6 +14,10 @@
 #     it lazily calculates it on demand and caches the result.
 #   * There is a singleton zero vector (vector2_zero).
 #     All zero vectors are this same vector ("is" test will pass).
+#   * There is a singleton unit vector (vector2_1_1).
+#     All unit vectors are this same vector ("is" test will pass):
+#         vec.Vector2(1, 1) is vector2_1_1
+#         vec.Vector2(1.0, 1.0) is vector2_1_1
 #   * The APIs accept a wide range of values where sensible.
 #     For example, these all work:
 #          Vector2(1, 2) + [3, 4]
@@ -53,7 +57,7 @@ and performant enough for use in video games.
 from math import acos, atan2, cos, pi, sin, sqrt, tau
 from collections.abc import Iterable, Set, Mapping
 
-__version__ = "0.6.2"
+__version__ = "0.6.3"
 
 
 pi_over_two = pi/2
@@ -251,6 +255,14 @@ class Vector2Metaclass(type):
             # but both must be set.
             if r_is_not_set or theta_is_not_set:
                 raise ValueError(f"{self.__name__}: you must specify r and theta together")
+
+        if x_is_set and y_is_set:
+            if (x == 1) and (y == 1):
+                return vector2_1_1
+            if (x == 1) and (y == 0):
+                return vector2_1_0
+            if (x == 0) and (y == 1):
+                return vector2_0_1
 
         args = {}
         if x_is_set:
@@ -1118,15 +1130,48 @@ class Vector2(metaclass=Vector2Metaclass):
         return result
 
 
-# Our custom singleton zero vector
-# is hand-crafted by artisans
+# Our custom singleton vectors
+# are hand-crafted by artisans
 # to envelop you in luxury.
-vector2_zero = Vector2(1, 1)
+vector2_zero = vector2_0_0 = Vector2(5, 5)
 object.__setattr__(vector2_zero, "x", 0)
 object.__setattr__(vector2_zero, "y", 0)
-object.__setattr__(vector2_zero, "r", 0)
 object.__setattr__(vector2_zero, "theta", None)
+object.__setattr__(vector2_zero, "r", 0)
 object.__setattr__(vector2_zero, "r_squared", 0)
 object.__setattr__(vector2_zero, "_cartesian", 2)
 object.__setattr__(vector2_zero, "_polar", 2)
 object.__setattr__(vector2_zero, "_hash", 0)
+
+
+vector2_1_0 = Vector2(5, 5)
+object.__setattr__(vector2_1_0, "x", 1)
+object.__setattr__(vector2_1_0, "y", 0)
+object.__setattr__(vector2_1_0, "theta", 0)
+object.__setattr__(vector2_1_0, "r", 1)
+object.__setattr__(vector2_1_0, "r_squared", 1)
+object.__setattr__(vector2_1_0, "_cartesian", 2)
+object.__setattr__(vector2_1_0, "_polar", 2)
+object.__setattr__(vector2_1_0, "_hash", hash((1, 0)))
+
+
+vector2_0_1 = Vector2(5, 5)
+object.__setattr__(vector2_0_1, "x", 0)
+object.__setattr__(vector2_0_1, "y", 1)
+object.__setattr__(vector2_0_1, "theta", pi / 2)
+object.__setattr__(vector2_0_1, "r", 1)
+object.__setattr__(vector2_0_1, "r_squared", 1)
+object.__setattr__(vector2_0_1, "_cartesian", 2)
+object.__setattr__(vector2_0_1, "_polar", 2)
+object.__setattr__(vector2_0_1, "_hash", hash((0, 1)))
+
+
+vector2_1_1 = Vector2(5, 5)
+object.__setattr__(vector2_1_1, "x", 1)
+object.__setattr__(vector2_1_1, "y", 1)
+object.__setattr__(vector2_1_1, "theta", pi / 4)
+object.__setattr__(vector2_1_1, "r", sqrt(2))
+object.__setattr__(vector2_1_1, "r_squared", 2)
+object.__setattr__(vector2_1_1, "_cartesian", 2)
+object.__setattr__(vector2_1_1, "_polar", 2)
+object.__setattr__(vector2_1_1, "_hash", hash((1, 1)))
