@@ -251,6 +251,7 @@ be `None`.
 `Vector2.almost_equal(other, places)`
 
 <dl><dd>
+
 Returns `True` if the vector and `other` are the same vector,
 down to `places` decimal places.  Like the `Vector2` class's
 support for the `==` operator, the comparison is only done
@@ -260,53 +261,64 @@ using cartesian coordinates, for consistency.
 `Vector2.scaled(scalar)`
 
 <dl><dd>
+
 Returns a new `Vector2` object, equivalent to the original vector multiplied by that scalar.
 </dd></dl>
 
 `Vector2.scaled_to_length(r)`
 
 <dl><dd>
+
 Returns a new `Vector2` object, equivalent to the original vector with its length set to `r`.
 </dd></dl>
 
 `Vector2.normalized()`
 
 <dl><dd>
+
 Returns a new `Vector2` object, equivalent to the original vector scaled to length 1.
 </dd></dl>
 
 `Vector2.rotated(theta)`
 
 <dl><dd>
+
 Returns a new `Vector2` object, equal to the original vector rotated by `theta` radians.
 </dd></dl>
 
 `Vector2.dot(other)`
 
 <dl><dd>
+
 Returns the "dot product" `self` • `other`.  This result is a scalar value, not a vector.
 </dd></dl>
 
 `Vector2.cross(other)`
 
-<dl><dd>
+<dl><dd><p>
+
 Returns the "cross product" `self` ⨯ `other`.  This result is a scalar value, not a vector.
+
+</p><p>
 
 *Note:* technically, there is no "cross product" defined for 2-dimensional vectors.
 In actuality this returns the "perpendicular dot product", or "perp dot product",
 of the two vectors, because that's what people actually want when they ask for the "cross
 product" of two 2D vectors.
-</dd></dl>
+
+</p></dd></dl>
 
 `Vector2.polar()`
 
 <dl><dd>
+
 Returns a 2-tuple of `(self.r, self.theta)`.
 </dd></dl>
 
 `Vector2.lerp(other, ratio)`
 
 <dl><dd>
+
 Returns a vector representing a linear interpolation between `self` and `other`, according
 to the scalar ratio `ratio`.  `ratio` should be a value between (and including) `0` and `1`.
 If `ratio` is `0`, this returns `self`.  If `ratio` is `1`, this returns `other`.
@@ -321,6 +333,7 @@ Note that it's not an error to specify a `ratio` less than `0` or greater than `
 `Vector2.slerp(other, ratio)`
 
 <dl><dd>
+
 Returns a vector representing a spherical interpolation between `self` and `other`, according
 to the scalar ratio `ratio`.  `ratio` should be a value between (and including) `0` and `1`.
 If `ratio` is `0`, this returns `self`.  If `ratio` is `1`, this returns `other`.
@@ -333,6 +346,7 @@ Note that it's not an error to specify a `ratio` less than `0` or greater than `
 `Vector2.nlerp(other, ratio)`
 
 <dl><dd>
+
 Returns a vector representing a normalized linear interpolation between `self` and `other`,
 according to the scalar ratio `ratio`.  `ratio` should be a value between (and including)
 `0` and `1`.  If `ratio` is `0`, this returns `self`.  If `ratio` is `1`, this returns `other`.
@@ -347,6 +361,7 @@ Note that it's not an error to specify a `ratio` less than `0` or greater than `
 `vector2_zero`
 
 <dl><dd>
+
 The "zero" `Vector2` vector object.
 `vec` guarantees that every zero vector is a reference to this object:
 
@@ -364,6 +379,7 @@ and `theta` set to a value besides `None`.
 `vector2_1_0`
 
 <dl><dd>
+
 A predefined `Vector2` vector object, equivalent to `Vector2(1, 0)`.
 When constructing a `Vector2` object that is exactly equivalent to this
 vector, the `Vector2` constructor will always return a reference to this
@@ -381,6 +397,7 @@ vector:
 `vector2_0_1`
 
 <dl><dd>
+
 A predefined `Vector2` vector object, equivalent to `Vector2(0, 1)`.
 When constructing a `Vector2` object that is exactly equivalent to this
 vector, the `Vector2` constructor will always return a reference to this
@@ -398,6 +415,7 @@ vector:
 `vector2_1_1`
 
 <dl><dd>
+
 A predefined `Vector2` vector object, equivalent to `Vector2(1, 1)`.
 When constructing a `Vector2` object that is exactly equivalent to this
 vector, the `Vector2` constructor will always return a reference to this
