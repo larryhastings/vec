@@ -136,6 +136,7 @@ performing your vector math as cheaply and accurately as possible.
 `Vector2(x=None, y=None, *, r=None, theta=None, r_squared=None)`
 
 <dl><dd>
+
 Constructs a `Vector2` object.  You may pass in as many or as
 few of these arguments as you like; however, you *must* pass in
 *either* both `x` and `y` *or* both `r` and `theta`.
@@ -228,6 +229,7 @@ vectors evaluate to `True`.
 `vec.from_polar(r, theta)`
 
 <dl><dd>
+
 Constructs a `Vector2` object from the two polar coordinates
 `r` and `theta`.
 
@@ -303,8 +305,8 @@ Returns the "cross product" `self` ⨯ `other`.  This result is a scalar value, 
 
 *Note:* technically, there is no "cross product" defined for 2-dimensional vectors.
 In actuality this returns the "perpendicular dot product", or "perp dot product",
-of the two vectors, because that's what people actually want when they ask for the "cross
-product" of two 2D vectors.
+of the two vectors, because that's what people usually mean when they say they
+want the "cross product" of two 2D vectors.
 
 </p></dd></dl>
 
@@ -463,8 +465,8 @@ should behave like numeric types, like `int` and `float`.
 
 * Added three new predefined vectors:
 
-  * `vector2_1_0` is `Vector2(1, 0)`
   * `vector2_0_1` is `Vector2(0, 1)`
+  * `vector2_1_0` is `Vector2(1, 0)`
   * `vector2_1_1` is `Vector2(1, 1)`
 
   Any expression that results in a vector that would be exactly
