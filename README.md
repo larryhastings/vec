@@ -375,7 +375,7 @@ Mathematically-speaking, the zero vector when expressed in polar coordinates
 doesn't have a defined angle.  Therefore `vec` defines its zero vector as
 having an angle of `None`.  The zero vector must have `r` set to zero
 and `theta` set to `None`, and any other vector must have a non-zero `r`
-and `theta` set to a value besides `None`.
+and `theta` set to a numeric value.
 </dd></dl>
 
 `vector2_1_0`
