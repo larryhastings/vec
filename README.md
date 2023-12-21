@@ -461,6 +461,14 @@ should behave like numeric types, like `int` and `float`.
 
 ## Changelog
 
+**next version** *under development*
+
+* Change the `repr` for `Vector2` objects.
+  If both `x` and `y` are set, and they're both
+  integers, it's more pleasant to only see those values,
+  even if some/all of the other values are cached.
+  This makes `repr(vector2_zero)` a lot easier to read.
+
 **0.6.3** *2023/10/26*
 
 * Added three new predefined vectors:

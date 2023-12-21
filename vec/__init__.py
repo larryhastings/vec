@@ -407,25 +407,31 @@ class Vector2(metaclass=Vector2Metaclass):
             except AttributeError:
                 y = sentinel
 
+        suppress_remaining = False
         if (x is not sentinel) and (y is not sentinel):
             fields.append(f"{x}, {y}")
+            try:
+                suppress_remaining = (int(x) == x) and (int(y) == y)
+            except ValueError:
+                pass
         else:
             if x is not sentinel:
                 fields.append(f"x={x}")
             if y is not sentinel:
                 fields.append(f"y={y}")
 
-        if self._polar == 2:
-            fields.append(f"r={self.r}, theta={self.theta}")
-            remaining_fields = ('r_squared',)
-        else:
-            remaining_fields = ('r', 'theta', 'r_squared')
-        for attr in remaining_fields:
-            try:
-                value = get(attr)
-                fields.append(f"{attr}={value}")
-            except AttributeError:
-                pass
+        if not suppress_remaining:
+            if self._polar == 2:
+                fields.append(f"r={self.r}, theta={self.theta}")
+                remaining_fields = ('r_squared',)
+            else:
+                remaining_fields = ('r', 'theta', 'r_squared')
+            for attr in remaining_fields:
+                try:
+                    value = get(attr)
+                    fields.append(f"{attr}={value}")
+                except AttributeError:
+                    pass
 
         text = ", ".join(fields)
         return f"{self.__class__.__name__}({text})"

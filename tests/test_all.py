@@ -599,18 +599,25 @@ class VecTests(unittest.TestCase):
             v = Vector2(**kwargs)
             self.assertEqual(s, repr(v))
 
+        test("Vector2(1.1, 5)", x=(1.1, 5))
+        test("Vector2(1.1, 5)", x=1.1, y=5)
+        test("Vector2(1.1, 5, r=3)", x=1.1, y=5, r=3)
+        test("Vector2(1.1, 5, theta=3)", x=1.1, y=5, theta=3)
+        test("Vector2(1.1, 5, r_squared=3)", x=1.1, y=5, r_squared=3)
+        test("Vector2(1.1, 5, r=1, theta=2, r_squared=3)", x=1.1, y=5, r=1, theta=2, r_squared=3)
+
         test("Vector2(1, 5)", x=(1, 5))
         test("Vector2(1, 5)", x=1, y=5)
-        test("Vector2(1, 5, r=3)", x=1, y=5, r=3)
-        test("Vector2(1, 5, theta=3)", x=1, y=5, theta=3)
-        test("Vector2(1, 5, r_squared=3)", x=1, y=5, r_squared=3)
-        test("Vector2(1, 5, r=1, theta=2, r_squared=3)", x=1, y=5, r=1, theta=2, r_squared=3)
+        test("Vector2(1, 5)", x=1, y=5, r=3)
+        test("Vector2(1, 5)", x=1, y=5, theta=3)
+        test("Vector2(1, 5)", x=1, y=5, r_squared=3)
+        test("Vector2(1, 5)", x=1, y=5, r=1, theta=2, r_squared=3)
 
         test("Vector2(r=1, theta=0.1)", r=1, theta=0.1)
         test("Vector2(x=3, r=1, theta=0.1)", x=3, r=1, theta=0.1)
         test("Vector2(y=3, r=1, theta=0.1)", y=3, r=1, theta=0.1)
 
-        vector2_zero_repr = "Vector2(0, 0, r=0, theta=None, r_squared=0)"
+        vector2_zero_repr = "Vector2(0, 0)"
         self.assertEqual(vector2_zero_repr, repr(vector2_zero))
         test(vector2_zero_repr, x=0, y=0)
         test(vector2_zero_repr, r=0, theta=None)
