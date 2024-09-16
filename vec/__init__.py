@@ -57,7 +57,7 @@ and performant enough for use in video games.
 from math import acos, atan2, cos, fabs, pi, sin, sqrt, tau
 from collections.abc import Iterable, Set, Mapping
 
-__version__ = "0.7"
+__version__ = "0.7.1"
 
 
 pi_over_two = pi/2
@@ -1121,7 +1121,7 @@ class Vector2(metaclass=Vector2Metaclass):
         return result
 
 
-    def pygame_slerp(self, other, ratio, *, epsilon=1e-6):
+    def pygame_slerp(self, other, ratio, *, reflected=None, epsilon=1e-6):
         "slerp calculator, more or less compatible with how pygame does it."
 
         if not isinstance(other, Vector2):
@@ -1144,10 +1144,17 @@ class Vector2(metaclass=Vector2Metaclass):
 
         subtended_theta = acos(dot)
 
-        # if ratio < 0, take the use the symmetric other great circle
-        if ratio < 0:
+        # if reflected is None, behave identically to pygame.
+        if reflected is None:
+            if ratio < 0:
+                reflected = True
+                ratio = -ratio
+            else:
+                reflected = False
+
+        # if reflected is False, use the symmetric other great circle
+        if reflected:
             subtended_theta -= tau
-            ratio = -ratio
 
         if (self.x * other.y) < (self.y * other.x):
             subtended_theta = -subtended_theta
@@ -1169,6 +1176,7 @@ class Vector2(metaclass=Vector2Metaclass):
             (self.x * self_ratio) + (other.x * other_ratio),
             (self.y * self_ratio) + (other.y * other_ratio),
             )
+
 
     slerp = pygame_slerp
 

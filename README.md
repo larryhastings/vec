@@ -334,23 +334,30 @@ Note that it's not an error to specify a `ratio` less than `0` or greater than `
 `ratio` isn't clamped to this range.
 </dd></dl>
 
-`Vector2.slerp(other, ratio, *, epsilon=1e-6)`
+`Vector2.slerp(other, ratio, *, reflected=None, epsilon=1e-6)`
 
 <dl><dd>
 
 Returns a vector representing a spherical interpolation between `self` and `other`, according
-to the scalar ratio `ratio`.  `ratio` should be a value between (and including) `-1` and `1`.
-If `ratio` is `0`, this returns `self`.  If `ratio` is `1` or `-1`, this returns `other`.
-`ratio` values less than `0` trace a different but symmetric path from ratio values greater
-than `0`.
+to the scalar ratio `ratio`.  `ratio` should be a value between (and including) `0` and `1`.
+If `ratio` is `0`, this returns `self`.  If `ratio` is `1`, this returns `other`.
 
 Note that it's not an error to specify a `ratio` less than `0` or greater than `1`, and
 `ratio` isn't clamped to this range.
 
 To facilitate compatibility with [pygame](https://www.pygame.org/news),
-`slerp` produces identical results to
-[`pygame.math.Vector2.slerp`](https://www.pygame.org/docs/ref/math.html#pygame.math.Vector2.slerp),
-including support for negative ratios.
+by default `slerp` produces identical results to
+[`pygame.math.Vector2.slerp`](https://www.pygame.org/docs/ref/math.html#pygame.math.Vector2.slerp).
+This includes the following behavior: when `ratio` is < `0`, `slerp` negates
+`ratio` and traces an alternate path between `self` and `other`.  This makes it
+impossible to use actual negative values for `ratio`.
+
+If you want to use actual negative ratios, specify the `reflected` parameter.
+This both specifies which path to trace and disables reflecting `ratio` around `0`.
+`reflected=False` selects the path normally traced by positive ratios, and
+`reflected=True` selects the path normally traced by negative ratios.
+
+
 (A previous implementation of `slerp` produced different results; it's still available,
 with the new name `Vector2.vec_slerp`.  It doesn't accept the `epsilon` argument.)
 
@@ -472,6 +479,17 @@ should behave like numeric types, like `int` and `float`.
 
 
 ## Changelog
+
+**0.7.1** *2024/09/15*
+
+* Added the `reflected` parameter to `Vector2.slerp`,
+  allowing you to render actual negative ratios.
+  For compatibility with
+  [`pygame.math.Vector2.slerp`](https://www.pygame.org/docs/ref/math.html#pygame.math.Vector2.slerp),
+  negative ratios normally trace an alternate path
+  using a symmetric unit circle.  Specifying a boolean
+  value for `reflected` disables this behavior, letting
+  you explicitly select which path you want.
 
 **0.7** *2024/09/15*
 

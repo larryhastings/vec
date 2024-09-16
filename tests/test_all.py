@@ -60,7 +60,7 @@ places = 14
 class VecTests(unittest.TestCase):
 
     def assertAlmostEqualVector(self, v1, v2):
-        self.assertTrue(v1.almost_equal(v2, places=places))
+        self.assertTrue(v1.almost_equal(v2, places=places), f"v1 ({v1}) is not almost equal to v2 ({v2})")
 
     # if everything is broken, fix this first!
     def test_eq(self):
@@ -1112,6 +1112,20 @@ class VecTests(unittest.TestCase):
 
         test_pygame_slerp(v1, v2, halfway)
         test_pygame_slerp(v1, [10, 15], halfway)
+
+        # test unclamped values
+        self.assertAlmostEqualVector(v1.pygame_slerp(v2,  1.1), Vector2(11.830107081192214, 15.665450955574348))
+        self.assertAlmostEqualVector(v1.pygame_slerp(v2, -1.1), Vector2(0.36283663176227304, 19.627178522972436))
+
+        # supply reflected parameter so we can use proper negative ratios
+        self.assertAlmostEqualVector(v1.pygame_slerp(v2, -0.1, reflected=False), Vector2(-0.023343438950280876, 0.3965378643171395))
+        self.assertAlmostEqualVector(v1.pygame_slerp(v2, -0.5, reflected=False), Vector2(1.7427265712167483, -5.755834862642889))
+        self.assertAlmostEqualVector(v1.pygame_slerp(v2, -1.0, reflected=False), Vector2(7.7811992150990825, -11.671798822648627))
+
+        self.assertAlmostEqualVector(v1.pygame_slerp(v2, -0.1, reflected=True), Vector2(0.2141938698032368, 0.3345268002984773))
+        self.assertAlmostEqualVector(v1.pygame_slerp(v2, -0.5, reflected=True), Vector2(-1.7427265712167481, 5.7558348626428835))
+        self.assertAlmostEqualVector(v1.pygame_slerp(v2, -1.0, reflected=True), Vector2(7.781199215099084, -11.671798822648615))
+
 
         # these vectors force pygame_slerp to fallback to lerp
         v1 = Vector2(1, 2)
