@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # vec
-# Copyright 2019-2023 by Larry Hastings
+# Copyright 2019-2024 by Larry Hastings
 # See LICENSE for license information.
 #
 # A collection of classes for vectors and rects
@@ -54,10 +54,10 @@ A 2-dimensional vector class designed to be convenient
 and performant enough for use in video games.
 """
 
-from math import acos, atan2, cos, pi, sin, sqrt, tau
+from math import acos, atan2, cos, fabs, pi, sin, sqrt, tau
 from collections.abc import Iterable, Set, Mapping
 
-__version__ = "0.6.3"
+__version__ = "0.7"
 
 
 pi_over_two = pi/2
@@ -410,10 +410,13 @@ class Vector2(metaclass=Vector2Metaclass):
         suppress_remaining = False
         if (x is not sentinel) and (y is not sentinel):
             fields.append(f"{x}, {y}")
-            try:
-                suppress_remaining = (int(x) == x) and (int(y) == y)
-            except ValueError:
-                pass
+            suppress_remaining = (int(x) == x) and (int(y) == y)
+
+            # I can't get this to raise ValueError, I think that's impossible
+            # try:
+            #     suppress_remaining = (int(x) == x) and (int(y) == y)
+            # except ValueError:
+            #     pass
         else:
             if x is not sentinel:
                 fields.append(f"x={x}")
@@ -978,7 +981,6 @@ class Vector2(metaclass=Vector2Metaclass):
         if self is vector2_zero:
             raise ValueError("can't rotate vector2_zero")
 
-
         self_as_object = super(Vector2, self)
         get = self_as_object.__getattribute__
         kwargs = {}
@@ -1067,7 +1069,7 @@ class Vector2(metaclass=Vector2Metaclass):
         if not isinstance(other, Vector2):
             other = self.__class__(other)
         if not isinstance(ratio, (int, float)):
-            raise ValueError(f"{self.__class__.__name__}: lerp ratio must be int or float")
+            raise TypeError(f"{self.__class__.__name__}: lerp ratio must be int or float")
 
         if self is other:
             return self
@@ -1082,11 +1084,12 @@ class Vector2(metaclass=Vector2Metaclass):
             )
 
     # https://en.wikipedia.org/wiki/Slerp#Geometric_Slerp
-    def slerp(self, other, ratio):
+    def vec_slerp(self, other, ratio):
+        "vec's original slerp calculator."
         if not isinstance(other, Vector2):
             other = self.__class__(other)
         if not isinstance(ratio, (int, float)):
-            raise ValueError(f"{self.__class__.__name__}: slerp ratio must be int or float")
+            raise TypeError(f"{self.__class__.__name__}: slerp ratio must be int or float")
 
         if self is other:
             return self
@@ -1095,12 +1098,8 @@ class Vector2(metaclass=Vector2Metaclass):
         if ratio == 1:
             return other
 
-        self_normalized = self.normalized()
-        other_normalized = other.normalized()
-        dot = self_normalized.dot(other_normalized)
-
-        dot = max(dot, -1)
-        dot = min(dot, 1)
+        dot = self.normalized().dot(other.normalized())
+        dot = -1 if (dot < -1) else (1 if (dot > 1) else dot)
 
         if dot == 1:
             # if dot is 1, theta is 0, so sin(theta) is 0
@@ -1120,6 +1119,59 @@ class Vector2(metaclass=Vector2Metaclass):
         result = (self * self_scale) + (other * other_scale)
 
         return result
+
+
+    def pygame_slerp(self, other, ratio, *, epsilon=1e-6):
+        "slerp calculator, more or less compatible with how pygame does it."
+
+        if not isinstance(other, Vector2):
+            other = Vector2(other)
+        if not isinstance(ratio, (int, float)):
+            raise TypeError("ratio must be float or int")
+        if not isinstance(epsilon, (int, float)):
+            raise TypeError("epsilon must be float or int")
+
+        if fabs(ratio) < epsilon:
+            return self
+        if fabs(ratio - 1) < epsilon:
+            return other
+
+        if (self.r < epsilon) or (other.r < epsilon):
+            raise ValueError("can't use slerp with very small vectors (r < epsilon)")
+
+        dot = self.normalized().dot(other.normalized())
+        dot = -1 if (dot < -1) else (1 if (dot > 1) else dot)
+
+        subtended_theta = acos(dot)
+
+        # if ratio < 0, take the use the symmetric other great circle
+        if ratio < 0:
+            subtended_theta -= tau
+            ratio = -ratio
+
+        if (self.x * other.y) < (self.y * other.x):
+            subtended_theta = -subtended_theta
+        subtended_theta = fabs(subtended_theta)
+
+        # as subtended_theta converges on zero
+        if ((subtended_theta < epsilon)
+            or (fabs(subtended_theta - tau) < epsilon)):
+            # approximate with lerp
+            return self.lerp(other, ratio)
+        # as subtended_theta converges on -pi
+        if fabs(subtended_theta - pi) < epsilon: # pragma: nocover
+            raise ValueError("slerp is undefined when subtended theta is near pi")
+
+        base_ratio = ((other.r - self.r) * ratio + self.r) / sin(subtended_theta)
+        self_ratio = (sin(subtended_theta * (1 - ratio)) / self.r) * base_ratio
+        other_ratio = (sin(subtended_theta * ratio) / other.r) * base_ratio
+        return Vector2(
+            (self.x * self_ratio) + (other.x * other_ratio),
+            (self.y * self_ratio) + (other.y * other_ratio),
+            )
+
+    slerp = pygame_slerp
+
 
     # https://keithmaggio.wordpress.com/2011/02/15/math-magician-lerp-slerp-and-nlerp/
     # but adjusted to handle non-normalized vectors

@@ -2,7 +2,7 @@
 
 ## A reasonable, performant 2D vector object for games
 
-##### Copyright 2019-2023 by Larry Hastings
+##### Copyright 2019-2024 by Larry Hastings
 
 ## Overview
 
@@ -40,7 +40,7 @@ of which domain something is in--and translate back and forth--is
 a needless conceptual complication.  You've got a game to write!
 
 (Some vector classes support *both* radians *and* degrees for polar
-coordinates.  This is simply bad API design--it doubles the surface
+coordinates.  This is bad API design--it doubles the surface
 area of your API, adding needless complexity and increasing maintenance
 and testing overhead.  Embrace the radian, folks.)
 
@@ -97,7 +97,7 @@ coordinates, then examine its cartesian coordinates:
     print(v2.x, v2.y)
 
 This prints `6.123233995736766e-17 1.0`.  Conceptually this should
-print `0.0, 1.0`--but `math.pi` is only an approximation, which sadly
+print `0.0, 1.0`--but `math.pi` is only an approximation, which
 means our result has an infinitesimal error.
 
 ### Implementation Details
@@ -149,7 +149,8 @@ vector.  Supported objects include:
 * an existing `Vector2` object (just returns that object),
 * an object which has `.x` and `.y` attributes,
 * a mapping object with exactly two keys, `'x'` and `'y'`, and
-* an ordered iterable object with exactly two elements.
+* an ordered iterable object with exactly two elements, which
+  will be used as `'x'` and `'y'` respectively.
 
 `Vector2` only does *some* validation of its arguments.
 It ensures that `r` and `theta` are normalized.  However,
@@ -193,7 +194,7 @@ which will yield the `x` and `y` attributes in that order.
 them, which behaves as if the `Vector2` object is a tuple of length
 2 containing the `x` and `y` attributes.
 
-`Vector2` objects also support the *boolean* protocol; you may use them
+`Vector2` objects support the *boolean protocol;* you may use them
 with boolean operators, and you may call `bool()` on them.  When used in
 a boolean context, the zero vector evaluates to `False`, and all other
 vectors evaluate to `True`.
@@ -209,7 +210,7 @@ vectors evaluate to `True`.
 * `v1 / scalar` divides the vector by a scalar amount.
 * `+v1` is exactly the same as `v1`.
 * `-v1` returns the opposite of `v1`, such that `v1 + (-v1)` should be the zero vector.
-   (This may not always be the case due to compounding floating-point errors.)
+   (This may not always be the case due to floating-point imprecision.)
 * `v1 == v2` is `True` if the two vectors are *exactly* the same, and `False` otherwise.
   For consistency, this only compares cartesian coordinates.
   Note that floating-point imprecision may result in two vectors that *should* be the
@@ -239,7 +240,8 @@ initialize the vector.  Supported objects include:
 * an existing `Vector2` object (just returns that object),
 * an object which has `.r` and `.theta` attributes,
 * a mapping object with exactly two keys, `'r'` and `'theta'`, and
-* an ordered iterable object with exactly two elements.
+* an ordered iterable object with exactly two elements, which will
+  be interpreted as `'r'` and `'theta'` in that order.
 
 If `r` is `0`, `theta` must be `None`, and `from_polar` will
 return the zero vector.  If `r` is not `0`, `theta` must not
@@ -304,9 +306,9 @@ Returns the "cross product" `self` ⨯ `other`.  This result is a scalar value, 
 </p><p>
 
 *Note:* technically, there is no "cross product" defined for 2-dimensional vectors.
-In actuality this returns the "perpendicular dot product", or "perp dot product",
-of the two vectors, because that's what people usually mean when they say they
-want the "cross product" of two 2D vectors.
+This actually returns the "perpendicular dot product" of the two vectors,
+because that's what people generally mean when they ask for the "cross product"
+of two 2D vectors.
 
 </p></dd></dl>
 
@@ -437,7 +439,7 @@ vector:
 
 `vec` does some input verification on its inputs.
 Coordinates--`x`, `y`, `r`, `theta`--are required to be
-either `int` or `long`.
+either `int` or `float`.
 (Technically `theta` can also be `None`.)  This best serves
 the intended use case of `vec` as a 2D vector library for
 game programming in Python.
@@ -461,13 +463,23 @@ should behave like numeric types, like `int` and `float`.
 
 ## Changelog
 
-**next version** *under development*
+**0.7** *2024/09/15*
 
+* Breaking change: Retooled support for "slerp"
+  (spherical linear interpolation)
+  to increase cross-library compatibility:
+  *  `vec`'s old implementation has been renamed `vec_slerp`.
+  * There's a new function, `pygame_slerp`, which produces
+    nearly identical results to `pygame.math.Vector2.slerp`.
+  * `Vector2.slerp` method defaults to `pygame_slerp`.
+  * `vec_slerp` now raises `TypeError` (instead of `ValueError`)
+    if `ratio` is the wrong type.  (Makes sense, right?)
 * Change the `repr` for `Vector2` objects.
   If both `x` and `y` are set, and they're both
-  integers, it's more pleasant to only see those values,
+  integers, it's more pleasant to see only those values,
   even if some/all of the other values are cached.
   This makes `repr(vector2_zero)` a lot easier to read.
+* Updated copyright dates to 2024.
 
 **0.6.3** *2023/10/26*
 
