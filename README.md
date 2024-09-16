@@ -331,19 +331,29 @@ defined by the two endpoints `self` and `other`, with the point being `ratio` be
 and `other`.  For example, if `ratio` is `0.4`, this returns `(self * 0.6) + (other * 0.4)`.
 
 Note that it's not an error to specify a `ratio` less than `0` or greater than `1`, and
-`ratio` is not clamped to this range.
+`ratio` isn't clamped to this range.
 </dd></dl>
 
-`Vector2.slerp(other, ratio)`
+`Vector2.slerp(other, ratio, *, epsilon=1e-6)`
 
 <dl><dd>
 
 Returns a vector representing a spherical interpolation between `self` and `other`, according
-to the scalar ratio `ratio`.  `ratio` should be a value between (and including) `0` and `1`.
-If `ratio` is `0`, this returns `self`.  If `ratio` is `1`, this returns `other`.
+to the scalar ratio `ratio`.  `ratio` should be a value between (and including) `-1` and `1`.
+If `ratio` is `0`, this returns `self`.  If `ratio` is `1` or `-1`, this returns `other`.
+`ratio` values less than `0` trace a different but symmetric path from ratio values greater
+than `0`.
 
 Note that it's not an error to specify a `ratio` less than `0` or greater than `1`, and
-`ratio` is not clamped to this range.
+`ratio` isn't clamped to this range.
+
+To facilitate compatibility with [pygame](https://www.pygame.org/news),
+`slerp` produces identical results to
+[`pygame.math.Vector2.slerp`](https://www.pygame.org/docs/ref/math.html#pygame.math.Vector2.slerp),
+including support for negative ratios.
+(A previous implementation of `slerp` produced different results; it's still available,
+with the new name `Vector2.vec_slerp`.  It doesn't accept the `epsilon` argument.)
+
 </dd></dl>
 
 
@@ -465,13 +475,13 @@ should behave like numeric types, like `int` and `float`.
 
 **0.7** *2024/09/15*
 
-* Breaking change: Retooled support for "slerp"
+* Breaking change: Retooled support for `slerp`
   (spherical linear interpolation)
   to increase cross-library compatibility:
   *  `vec`'s old implementation has been renamed `vec_slerp`.
-  * There's a new function, `pygame_slerp`, which produces
-    nearly identical results to `pygame.math.Vector2.slerp`.
-  * `Vector2.slerp` method defaults to `pygame_slerp`.
+  * There's a new method, `pygame_slerp`, which produces
+    essentially identical results to [`pygame.math.Vector2.slerp`](https://www.pygame.org/docs/ref/math.html#pygame.math.Vector2.slerp).
+  * The `Vector2.slerp` method defaults to `pygame_slerp`.
   * `vec_slerp` now raises `TypeError` (instead of `ValueError`)
     if `ratio` is the wrong type.  (Makes sense, right?)
 * Change the `repr` for `Vector2` objects.
