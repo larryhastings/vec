@@ -46,11 +46,10 @@
 #     from namespaces and mappings.  still be strict about it for mappings.
 #
 #   * Rect2
-#   * Vector3
 #   * rewrite as C extension for speedy speeds
 
 """
-A 2-dimensional vector class designed to be convenient
+Immutable 2D and 3D vector classes designed to be convenient
 and performant enough for use in video games.
 """
 
@@ -133,9 +132,11 @@ permit_coordinate_type(float)
 
 _sentinel = object()
 
-class Vector2Metaclass(type):
+class Vector2:
 
-    def __call__(self, x=_sentinel, y=_sentinel, *, r=_sentinel, theta=_sentinel, r_squared=_sentinel):
+    __slots__ = ['x', 'y', 'r', 'theta', 'r_squared', '_cartesian', '_polar', '_hash']
+
+    def __new__(cls, x=_sentinel, y=_sentinel, *, r=_sentinel, theta=_sentinel, r_squared=_sentinel):
 
         # All input validation is done here.
         #
@@ -151,7 +152,6 @@ class Vector2Metaclass(type):
         # If you specify x and y, or specify r and theta, then you
         # may specify any additional arguments you like.
         #
-        # print(f"Vector2Metaclass(self={self}, x={x}, y={y}, r={r}, theta={theta}, r_squared={r_squared})")
 
         x_source = "x"
         y_source = "y"
@@ -181,14 +181,14 @@ class Vector2Metaclass(type):
             something_besides_x_is_set = y_is_set or r_is_set or theta_is_set or r_squared_is_set
             if isinstance(x, Vector2):
                 if something_besides_x_is_set:
-                    raise ValueError(f"{self.__name__}: when x is an object, you must not specify y, r, or theta")
+                    raise ValueError(f"{cls.__name__}: when x is an object, you must not specify y, r, or theta")
                 return x
             # the while loop is here just so we can early-exit break out of processing.
             # we never actually loop.
             while True:
                 if hasattr(x, 'x') and hasattr(x, 'y'):
                     if something_besides_x_is_set:
-                        raise ValueError(f"{self.__name__}: when x is an object, you must not specify y, r, or theta")
+                        raise ValueError(f"{cls.__name__}: when x is an object, you must not specify y, r, or theta")
                     x_source = "x.x"
                     y_source = "x.y"
                     y = x.y
@@ -200,29 +200,29 @@ class Vector2Metaclass(type):
 
                 if hasattr(x, "__getitem__"):
                     if something_besides_x_is_set:
-                        raise ValueError(f"{self.__name__}: when x is an object, you must not specify y, r, or theta")
+                        raise ValueError(f"{cls.__name__}: when x is an object, you must not specify y, r, or theta")
                     try:
                         maybe_x = x['x']
                         y = x['y']
                         x_source = "x['x']"
                         y_source = "x['y']"
                         if len(x) != 2:
-                            raise ValueError(f"{self.__name__}: if x is a mapping, it must contain exactly 2 items")
+                            raise ValueError(f"{cls.__name__}: if x is a mapping, it must contain exactly 2 items")
                         x = maybe_x
                         not_x_or_y = y_is_not_set = False
                         x_and_y = y_is_set = True
                         # x_is_set and y_is_set
                         break
                     except KeyError:
-                        raise KeyError(f"{self.__name__}: if x is an mapping, it must contain elements 'x' and 'y'") from None
+                        raise KeyError(f"{cls.__name__}: if x is an mapping, it must contain elements 'x' and 'y'") from None
                     except TypeError:
                         pass
 
                 if hasattr(x, "__iter__"):
                     if isinstance(x, _invalid_types_for_iterable):
-                        raise TypeError(f"{self.__name__}: if x is an iterable, it must be ordered, not {x.__class__.__name__}")
+                        raise TypeError(f"{cls.__name__}: if x is an iterable, it must be ordered, not {x.__class__.__name__}")
                     if something_besides_x_is_set:
-                        raise ValueError(f"{self.__name__}: when x is an object, you must not specify y, r, or theta")
+                        raise ValueError(f"{cls.__name__}: when x is an object, you must not specify y, r, or theta")
                     i = iter(x)
                     x_source = "x[0]"
                     y_source = "x[1]"
@@ -230,10 +230,10 @@ class Vector2Metaclass(type):
                         x = next(i)
                         y = next(i)
                     except StopIteration:
-                        raise ValueError(f"{self.__name__}: if x is an iterable, it must contain exactly 2 items")
+                        raise ValueError(f"{cls.__name__}: if x is an iterable, it must contain exactly 2 items")
                     try:
                         next(i)
-                        raise ValueError(f"{self.__name__}: if x is an iterable, it must contain exactly 2 items")
+                        raise ValueError(f"{cls.__name__}: if x is an iterable, it must contain exactly 2 items")
                     except StopIteration:
                         pass
                     not_x_or_y = y_is_not_set = False
@@ -253,7 +253,7 @@ class Vector2Metaclass(type):
             # (otherwise we'd already be vector2_zero.)
             # but both must be set.
             if x_is_not_set or y_is_not_set:
-                raise ValueError(f"{self.__name__}: you must specify x and y together")
+                raise ValueError(f"{cls.__name__}: you must specify x and y together")
 
         if not_x_or_y:
             # neither x nor y is set.
@@ -261,67 +261,57 @@ class Vector2Metaclass(type):
             # (otherwise we'd already be vector2_zero.)
             # but both must be set.
             if r_is_not_set or theta_is_not_set:
-                raise ValueError(f"{self.__name__}: you must specify r and theta together")
+                raise ValueError(f"{cls.__name__}: you must specify r and theta together")
 
-        args = {}
         if x_is_set:
             if not isinstance(x, permitted_coordinate_types):
-                raise TypeError(f"{self.__name__}: {x_source} must be int, float, Vector2, object with .x and .y, or iterable, not {x}")
-            args['x'] = x
+                raise TypeError(f"{cls.__name__}: {x_source} must be int, float, Vector2, object with .x and .y, or iterable, not {x}")
         if y_is_set:
             if not isinstance(y, permitted_coordinate_types):
-                raise TypeError(f"{self.__name__}: {y_source} must be int or float, not {y}")
-            args['y'] = y
+                raise TypeError(f"{cls.__name__}: {y_source} must be int or float, not {y}")
         if r_is_set:
             if not isinstance(r, permitted_coordinate_types):
-                raise TypeError(f"{self.__name__}: r must be int or float, not {r}")
-            args['r'] = r
+                raise TypeError(f"{cls.__name__}: r must be int or float, not {r}")
         if theta_is_set:
             if theta is None:
                 if r_is_set and r:
-                    raise TypeError(f"{self.__name__}: theta is None, can't be None when r is {r}")
+                    raise TypeError(f"{cls.__name__}: theta is None, can't be None when r is {r}")
             else:
                 if not isinstance(theta, permitted_coordinate_types):
-                    raise TypeError(f"{self.__name__}: theta must be int or float, not {theta}")
+                    raise TypeError(f"{cls.__name__}: theta must be int or float, not {theta}")
                 if r_is_set and (not r):
-                    raise TypeError(f"{self.__name__}: theta is {theta}, must be None when r is 0")
+                    raise TypeError(f"{cls.__name__}: theta is {theta}, must be None when r is 0")
                 theta = normalize_angle(theta)
 
         if r_is_set and theta_is_set:
             r, theta = normalize_polar(r, theta)
-            args['r'] = r
-            args['theta'] = theta
         elif r_is_set:
             if r < 0:
-                raise ValueError(f"{self.__name__}: can't specify r < 0 if you don't specify theta")
-            args['r'] = r
-        else:
-            args['theta'] = theta
+                raise ValueError(f"{cls.__name__}: can't specify r < 0 if you don't specify theta")
 
         if r_squared_is_set:
             if not isinstance(r_squared, permitted_coordinate_types):
-                raise TypeError(f"{self.__name__}: r_squared must be int or float, not {r_squared}")
-            args['r_squared'] = r_squared
+                raise TypeError(f"{cls.__name__}: r_squared must be int or float, not {r_squared}")
 
         # at this point, if <whatever>_is_set is True, <whatever> is confirmed a legal value
 
         if x_and_y:
             if not (x or y):
                 if r_is_set and r:
-                    raise ValueError(f"{self.__name__}: r is {r}, must be 0 when vector=(0, 0)")
+                    raise ValueError(f"{cls.__name__}: r is {r}, must be 0 when vector=(0, 0)")
                 if theta_is_set and (theta is not None):
-                    raise TypeError(f"{self.__name__}: theta is {theta}, must be None when vector=(0, 0)")
+                    raise TypeError(f"{cls.__name__}: theta is {theta}, must be None when vector=(0, 0)")
                 if r_squared_is_set and r_squared:
-                    raise ValueError(f"{self.__name__}: r is {r}, must be 0 when vector=(0, 0)")
+                    raise ValueError(f"{cls.__name__}: r is {r}, must be 0 when vector=(0, 0)")
                 return vector2_zero
 
             # at least one of x or y must be nonzero.  therefore r must be nonzero, and theta must not be None.
             if r_is_set and (not r):
-                raise ValueError(f"{self.__name__}: r is {r}, must be > 0 when vector=({x}, {y})")
+                raise ValueError(f"{cls.__name__}: r is {r}, must be > 0 when vector=({x}, {y})")
             if theta_is_set and (theta is None):
-                raise TypeError(f"{self.__name__}: theta is {theta}, must not be None when vector=({x}, {y})")
+                raise TypeError(f"{cls.__name__}: theta is {theta}, must not be None when vector=({x}, {y})")
             if r_squared_is_set and (not r_squared):
-                raise ValueError(f"{self.__name__}: r_squared is {r_squared}, must be > 0 when vector=({x}, {y})")
+                raise ValueError(f"{cls.__name__}: r_squared is {r_squared}, must be > 0 when vector=({x}, {y})")
 
             if (x == 1):
                 if (y == 1):
@@ -339,15 +329,15 @@ class Vector2Metaclass(type):
             # so we don't need to double-check r here, we can check theta *or* r with confidence.
             if theta is None:
                 if x_is_set and x:
-                    raise ValueError(f"{self.__name__}: x is {x}, must be 0 when r is 0")
+                    raise ValueError(f"{cls.__name__}: x is {x}, must be 0 when r is 0")
                 if y_is_set and y:
-                    raise ValueError(f"{self.__name__}: y is {y}, must be 0 when r is 0")
+                    raise ValueError(f"{cls.__name__}: y is {y}, must be 0 when r is 0")
                 if r_squared_is_set and r_squared:
-                    raise ValueError(f"{self.__name__}: r is {r}, must be 0 when vector=(0, 0)")
+                    raise ValueError(f"{cls.__name__}: r is {r}, must be 0 when vector=(0, 0)")
                 return vector2_zero
 
             if r_squared_is_set and (not r_squared):
-                raise ValueError(f"{self.__name__}: r_squared is {r_squared}, must be > 0 when r is {r}")
+                raise ValueError(f"{cls.__name__}: r_squared is {r_squared}, must be > 0 when r is {r}")
 
             if (r == 1):
                 if (theta == 0):
@@ -357,16 +347,8 @@ class Vector2Metaclass(type):
             elif (r == sqrt_2) and (theta == pi_over_four):
                 return vector2_1_1
 
-        return super().__call__(**args)
-
-
-
-class Vector2(metaclass=Vector2Metaclass):
-
-    __slots__ = ['x', 'y', 'r', 'theta', 'r_squared', '_cartesian', '_polar', '_hash']
-
-    def __init__(self, x=_sentinel, y=_sentinel, *, r=_sentinel, theta=_sentinel, r_squared=_sentinel):
-        # Validation and predefined-vector selection happen in the metaclass.
+        # Initialize only newly allocated vectors; reused instances keep their caches.
+        self = object.__new__(cls)
         set_attr = object.__setattr__
         if x is not _sentinel:
             set_attr(self, 'x', x)
@@ -381,6 +363,7 @@ class Vector2(metaclass=Vector2Metaclass):
         # Each counter records how many coordinates of that pair are cached.
         set_attr(self, '_cartesian', (x is not _sentinel) + (y is not _sentinel))
         set_attr(self, '_polar', (r is not _sentinel) + (theta is not _sentinel))
+        return self
 
     def __repr__(self):
         fields = []
@@ -795,7 +778,7 @@ class Vector2(metaclass=Vector2Metaclass):
         if other == 1:
             return self
         if other == 0:
-            return vector2_zero
+            raise ZeroDivisionError("Vector2 division by zero")
         if other == -1:
             return -self
 
@@ -1278,3 +1261,322 @@ object.__setattr__(vector2_1_1, "r_squared", 2)
 object.__setattr__(vector2_1_1, "_cartesian", 2)
 object.__setattr__(vector2_1_1, "_polar", 2)
 object.__setattr__(vector2_1_1, "_hash", hash((1, 1)))
+
+
+class Vector3:
+    """Immutable Cartesian 3D vector with lazily cached lengths and hash."""
+
+    __slots__ = ('x', 'y', 'z', 'r', 'r_squared', '_hash')
+
+    def __new__(cls, x=_sentinel, y=_sentinel, z=_sentinel):
+        if x is _sentinel and y is _sentinel and z is _sentinel:
+            return vector3_zero
+        if y is _sentinel and z is _sentinel and x is not _sentinel:
+            if isinstance(x, Vector3):
+                return x
+            if not isinstance(x, permitted_coordinate_types):
+                source = x
+                if isinstance(source, Mapping):
+                    if len(source) != 3:
+                        raise ValueError("Vector3: a mapping must contain exactly three coordinates")
+                    x, y, z = source['x'], source['y'], source['z']
+                else:
+                    try:
+                        x, y, z = source.x, source.y, source.z
+                    except AttributeError:
+                        if isinstance(source, (Set, str, bytes, bytearray)):
+                            raise TypeError("Vector3: coordinates must be an ordered numeric iterable")
+                        x, y, z = source
+        if x is _sentinel or y is _sentinel or z is _sentinel:
+            raise ValueError("Vector3: specify x, y, and z together")
+        if not (isinstance(x, permitted_coordinate_types)
+                and isinstance(y, permitted_coordinate_types)
+                and isinstance(z, permitted_coordinate_types)):
+            raise TypeError("Vector3: coordinates must be int, float, or a permitted coordinate type")
+        if not (x or y or z):
+            return vector3_zero
+        if x == 1 and not (y or z):
+            return vector3_1_0_0
+        if y == 1 and not (x or z):
+            return vector3_0_1_0
+        if z == 1 and not (x or y):
+            return vector3_0_0_1
+        self = object.__new__(cls)
+        set_attr = object.__setattr__
+        set_attr(self, 'x', x)
+        set_attr(self, 'y', y)
+        set_attr(self, 'z', z)
+        return self
+
+    def __getattr__(self, name):
+        if name == 'r_squared':
+            value = self.x*self.x + self.y*self.y + self.z*self.z
+        elif name == 'r':
+            value = sqrt(self.r_squared)
+        elif name == '_hash':
+            value = hash((self.x, self.y, self.z))
+        else:
+            raise AttributeError(f"{self.__class__.__name__}: object has no attribute {name}")
+        object.__setattr__(self, name, value)
+        return value
+
+    def __setattr__(self, name, value):
+        raise TypeError(f"{self.__class__.__name__}: object is immutable")
+
+    def __delattr__(self, name):
+        raise TypeError(f"{self.__class__.__name__}: object is immutable")
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.x!r}, {self.y!r}, {self.z!r})"
+
+    def __len__(self):
+        return 3
+
+    def __iter__(self):
+        yield self.x
+        yield self.y
+        yield self.z
+
+    def __getitem__(self, index):
+        index = index.__index__()
+        if index not in (0, 1, 2):
+            raise IndexError("Vector3: index out of range")
+        return (self.x, self.y, self.z)[index]
+
+    def __setitem__(self, index, value):
+        raise TypeError("Vector3: object does not support item assignment")
+
+    def __bool__(self):
+        return self is not vector3_zero
+
+    def __hash__(self):
+        return self._hash
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+        if not isinstance(other, Vector3):
+            return False
+        return self.x == other.x and self.y == other.y and self.z == other.z
+
+    def __ne__(self, other):
+        return not self == other
+
+    def __pos__(self):
+        return self
+
+    def __neg__(self):
+        return self.__class__(-self.x, -self.y, -self.z)
+
+    def __add__(self, other):
+        if not isinstance(other, Vector3):
+            other = self.__class__(other)
+        if not other:
+            return self
+        if not self:
+            return other
+        return self.__class__(self.x + other.x, self.y + other.y, self.z + other.z)
+
+    def __radd__(self, other):
+        return self + other
+
+    def __sub__(self, other):
+        if not isinstance(other, Vector3):
+            other = self.__class__(other)
+        if not other:
+            return self
+        return self.__class__(self.x - other.x, self.y - other.y, self.z - other.z)
+
+    def __rsub__(self, other):
+        return (-self) + other
+
+    def __mul__(self, scalar):
+        if not isinstance(scalar, (int, float)):
+            raise ValueError("Vector3: multiply by a scalar, or use dot() or cross()")
+        if scalar == 1:
+            return self
+        if scalar == 0:
+            return vector3_zero
+        return self.__class__(self.x * scalar, self.y * scalar, self.z * scalar)
+
+    def __rmul__(self, scalar):
+        return self * scalar
+
+    def __truediv__(self, scalar):
+        if not isinstance(scalar, (int, float)):
+            raise ValueError("Vector3: divide by a scalar")
+        if scalar == 0:
+            raise ZeroDivisionError("Vector3 division by zero")
+        if scalar == 1:
+            return self
+        return self.__class__(self.x / scalar, self.y / scalar, self.z / scalar)
+
+    def almost_equal(self, other, places):
+        if not isinstance(other, Vector3):
+            other = self.__class__(other)
+        if self == other:
+            return True
+        return (not round(self.x - other.x, places)
+                and not round(self.y - other.y, places)
+                and not round(self.z - other.z, places))
+
+    def scaled(self, multiplier):
+        return self * multiplier
+
+    def scaled_to_length(self, r):
+        if not isinstance(r, (int, float)):
+            raise TypeError("Vector3: length must be int or float")
+        if not r:
+            return vector3_zero
+        if not self:
+            raise ValueError("can't scale vector3_zero to a nonzero length")
+        length = self.r
+        if length == r:
+            return self
+        # Divide each coordinate first rather than forming a reciprocal.
+        result = self.__class__((self.x / length) * r,
+                                (self.y / length) * r,
+                                (self.z / length) * r)
+        # The requested length is already known. Future reads remain native
+        # slot reads, just as they are after any lazy computation.
+        if (result is not vector3_zero and result is not vector3_1_0_0
+                and result is not vector3_0_1_0 and result is not vector3_0_0_1):
+            object.__setattr__(result, 'r', abs(r))
+            object.__setattr__(result, 'r_squared', r*r)
+        return result
+
+    def normalized(self):
+        return self.scaled_to_length(1)
+
+    def dot(self, other):
+        if not isinstance(other, Vector3):
+            other = self.__class__(other)
+        return self.x*other.x + self.y*other.y + self.z*other.z
+
+    def cross(self, other):
+        if not isinstance(other, Vector3):
+            other = self.__class__(other)
+        return self.__class__(self.y*other.z - self.z*other.y,
+                              self.z*other.x - self.x*other.z,
+                              self.x*other.y - self.y*other.x)
+
+    def rotated(self, axis, angle):
+        """Rotate about a nonzero axis using the right-hand rule."""
+        if not isinstance(angle, (int, float)):
+            raise TypeError("Vector3: angle must be int or float")
+        if not isinstance(axis, Vector3):
+            axis = self.__class__(axis)
+        if not axis:
+            raise ValueError("Vector3: rotation axis must be nonzero")
+        if not angle:
+            return self
+        if not self:
+            raise ValueError("can't rotate vector3_zero")
+        angle = normalize_angle(angle)
+        if not angle:
+            return self
+        if angle == pi_over_two:
+            cosine, sine = 0, 1
+        elif angle == negative_pi_over_two:
+            cosine, sine = 0, -1
+        elif angle == negative_pi:
+            cosine, sine = -1, 0
+        else:
+            cosine, sine = cos(angle), sin(angle)
+        axis = axis.normalized()
+        # Rodrigues' formula: v*cos(t) + (k cross v)*sin(t)
+        #                     + k*(k dot v)*(1-cos(t)).
+        cross = axis.cross(self)
+        parallel = axis.dot(self) * (1 - cosine)
+        return self.__class__(self.x*cosine + cross.x*sine + axis.x*parallel,
+                              self.y*cosine + cross.y*sine + axis.y*parallel,
+                              self.z*cosine + cross.z*sine + axis.z*parallel)
+
+    def lerp(self, other, ratio):
+        if not isinstance(other, Vector3):
+            other = self.__class__(other)
+        if not isinstance(ratio, (int, float)):
+            raise TypeError("Vector3: lerp ratio must be int or float")
+        if self is other or ratio == 0:
+            return self
+        if ratio == 1:
+            return other
+        return self.__class__(self.x + (other.x - self.x)*ratio,
+                              self.y + (other.y - self.y)*ratio,
+                              self.z + (other.z - self.z)*ratio)
+
+    def nlerp(self, other, ratio):
+        if not isinstance(other, Vector3):
+            other = self.__class__(other)
+        if not isinstance(ratio, (int, float)):
+            raise TypeError("Vector3: nlerp ratio must be int or float")
+        if self is other or ratio == 0:
+            return self
+        if ratio == 1:
+            return other
+        result = self.lerp(other, ratio)
+        return result.scaled_to_length(self.r + (other.r - self.r)*ratio)
+
+    def slerp(self, other, ratio, *, axis=None):
+        """Interpolate direction on the shorter arc and length linearly.
+
+        Exactly opposite directions need a perpendicular axis to select the
+        half-turn. Its sign selects the direction by the right-hand rule.
+        """
+        if not isinstance(other, Vector3):
+            other = self.__class__(other)
+        if not isinstance(ratio, (int, float)):
+            raise TypeError("Vector3: slerp ratio must be int or float")
+        if axis is not None:
+            if not isinstance(axis, Vector3):
+                axis = self.__class__(axis)
+            if not axis:
+                raise ValueError("Vector3: interpolation axis must be nonzero")
+        if self is other or ratio == 0:
+            return self
+        if ratio == 1:
+            return other
+        if not self or not other:
+            raise ValueError("can't slerp a zero vector: it has no direction")
+
+        normal = self.cross(other)
+        dot = self.dot(other)
+        if not normal and dot >= 0:
+            return self.lerp(other, ratio)
+        self_r, other_r = self.r, other.r
+        unit = self / self_r
+        if not normal:
+            if axis is None:
+                raise ValueError("opposite vectors require a perpendicular interpolation axis")
+            axis = axis.normalized()
+            # Allow only floating-point rounding in a perpendicular axis.
+            if fabs(axis.dot(unit)) > 1e-12:
+                raise ValueError("interpolation axis must be perpendicular to the vectors")
+            tangent = axis.cross(unit).normalized()
+            theta = pi
+        else:
+            tangent = normal.normalized().cross(unit).normalized()
+            theta = atan2(normal.r, dot)
+        angle = theta * ratio
+        cosine, sine = cos(angle), sin(angle)
+        radius = self_r + (other_r - self_r)*ratio
+        return self.__class__((unit.x*cosine + tangent.x*sine)*radius,
+                              (unit.y*cosine + tangent.y*sine)*radius,
+                              (unit.z*cosine + tangent.z*sine)*radius)
+
+
+# Bootstrap the predefined objects without invoking the interning constructor.
+for _name, (_x, _y, _z) in (
+        ('vector3_zero', (0, 0, 0)),
+        ('vector3_1_0_0', (1, 0, 0)),
+        ('vector3_0_1_0', (0, 1, 0)),
+        ('vector3_0_0_1', (0, 0, 1))):
+    _vector = object.__new__(Vector3)
+    for _field, _value in (('x', _x), ('y', _y), ('z', _z),
+                           ('r', 0 if _name == 'vector3_zero' else 1),
+                           ('r_squared', _x*_x + _y*_y + _z*_z),
+                           ('_hash', hash((_x, _y, _z)))):
+        object.__setattr__(_vector, _field, _value)
+    globals()[_name] = _vector
+vector3_0_0_0 = vector3_zero
+del _name, _x, _y, _z, _vector, _field, _value

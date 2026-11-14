@@ -49,6 +49,7 @@ import unittest
 import vec
 
 from vec import Vector2, vector2_zero, vector2_1_0, vector2_0_1, vector2_1_1
+from test_vector3 import Vector3Tests
 
 
 class FalseSentinel:
@@ -390,9 +391,37 @@ class VecTests(unittest.TestCase):
         self.assertIs(Vector2(vector2_0_1), vector2_0_1)
         self.assertIs((vector2_0_1 * 3) - (vector2_0_1 * 2), vector2_0_1)
 
-    def test_metaclass_call(self):
+    def test_constructor_reuse_preserves_caches(self):
+        missing = object()
+
+        def snapshot(v):
+            values = []
+            for field in Vector2.__slots__:
+                try:
+                    values.append(object.__getattribute__(v, field))
+                except AttributeError:
+                    values.append(missing)
+            return values
+
+        for original in (Vector2(3, 4), Vector2(r=5, theta=0.3),
+                         vector2_zero, vector2_1_0, vector2_0_1, vector2_1_1):
+            for populated in (False, True):
+                with self.subTest(original=repr(original), populated=populated):
+                    if populated:
+                        for field in Vector2.__slots__:
+                            getattr(original, field)
+                    before = snapshot(original)
+                    self.assertIs(Vector2(original), original)
+                    if any(original is predefined for predefined in
+                           (vector2_zero, vector2_1_0, vector2_0_1, vector2_1_1)):
+                        self.assertIs(Vector2(original.x, original.y), original)
+                        self.assertIs(Vector2(r=original.r, theta=original.theta), original)
+                    for old, new in zip(before, snapshot(original)):
+                        self.assertIs(old, new)
+
+    def test_constructor(self):
         # This test triggers every raise and every return
-        # in Vector2Metaclass.__call__,
+        # in Vector2.__new__,
         # in order.
 
         def raises_value(**kwargs):
@@ -963,16 +992,20 @@ class VecTests(unittest.TestCase):
 
         v3_5 = Vector2(3, 5)
         test_truediv(v3_5,-1, -v3_5)
-        test_truediv(v3_5, 0, vector2_zero)
         test_truediv(v3_5, 1, v3_5)
         test_truediv(v3_5, 2, Vector2(1.5, 2.5))
 
         vp = Vector2(r=1.5, theta=1)
         test_truediv(vp,-1, -vp)
-        test_truediv(vp, 0, vector2_zero)
         test_truediv(vp, 1, vp)
         test_truediv(vp, 2, Vector2(r=0.75, theta=1))
         test_truediv(vp, -2, Vector2(r=0.75, theta=1-pi))
+
+        for dividend in (v3_5, vp, vector2_zero):
+            for divisor in (0, 0.0, -0.0):
+                with self.subTest(dividend=dividend, divisor=divisor):
+                    with self.assertRaises(ZeroDivisionError):
+                        dividend / divisor
 
         v=Vector2(2, 2, theta=1)
         divisor = -2

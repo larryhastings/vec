@@ -1,21 +1,23 @@
 # vec
 
-## A reasonable, performant 2D vector object for games
+## Reasonable, performant 2D and 3D vector objects for games
 
 ##### Copyright 2019-2024 by Larry Hastings
 
 ## Overview
 
-`vec` is a module currently publishing one class: `Vector2`, a 2D
-vector object designed for game development.
+`vec` publishes two vector classes designed for game development:
+`Vector2` for 2D and `Vector3` for 3D.
 
 Features:
 
-* `Vector2` objects are immutable.
-* `Vector2` support all the usual vector object features,
+* Both vector classes are immutable.
+* Both support the usual vector object features,
   including operator overloading.
-* Attributes of `Vector2` objects are lazily-computed where possible.
-* `Vector2` objects effortlessly support both cartesian and polar coordinates.
+* Derived attributes are lazily computed and cached where possible.
+* `Vector2` supports both cartesian and polar coordinates.
+* `Vector3` uses cartesian coordinates, with vector cross products and
+  rotation around an arbitrary axis.
 
 `vec` supports Python 3.6+, and passes its unit test suite with 100% statement coverage.
 
@@ -132,7 +134,7 @@ coordinates!  `Vector2` takes advantage of many such serendipities,
 performing your vector math as cheaply and accurately as possible.
 
 
-## The API
+## The Vector2 API
 
 `Vector2(x=..., y=..., *, r=..., theta=..., r_squared=...)`
 
@@ -213,7 +215,8 @@ vectors evaluate to `True`.
 * `v1 + v2` adds the two vectors together.
 * `v1 - v2` subtracts the right vector from the left vector.
 * `v1 * scalar` multiplies the vector by a scalar amount, equivalent to `v1.scaled(scalar)`.
-* `v1 / scalar` divides the vector by a scalar amount.
+* `v1 / scalar` divides the vector by a scalar amount.  A zero divisor raises
+  `ZeroDivisionError`, including when `v1` is the zero vector.
 * `+v1` is exactly the same as `v1`.
 * `-v1` returns the opposite of `v1`, such that `v1 + (-v1)` should be the zero vector.
    (This may not always be the case due to floating-point imprecision.)
@@ -521,14 +524,135 @@ vector:
 </dd></dl>
 
 
+## The Vector3 API
+
+`Vector3` has the same immutable, cached-attribute design as `Vector2`, with
+three cartesian coordinates.  It does not have polar or spherical coordinate
+attributes.
+
+### Construction and attributes
+
+```python
+from vec import Vector3
+
+v = Vector3(2, 3, 6)
+v = Vector3(x=2, y=3, z=6)
+v = Vector3((2, 3, 6))
+v = Vector3({'x': 2, 'y': 3, 'z': 6})
+```
+
+You can supply three individual coordinates, an ordered iterable of exactly
+three coordinates, a mapping with exactly the keys `x`, `y`, and `z`, or an
+object with those three attributes.  Passing an existing `Vector3` returns
+that same object.  Calling `Vector3()` returns the zero vector.  Individual
+coordinates must be supplied together; omitted coordinates do not default
+to zero, and `None` is not a coordinate value.
+
+`x`, `y`, and `z` are stored at construction.  `r` (length), `r_squared`,
+and the hash are computed when needed and cached.  Repeated reads of a cached
+attribute access its slot directly.  Assignment and deletion of attributes
+are forbidden.  Equality and hashing depend only on cartesian coordinates.
+
+### Operators and common methods
+
+The arithmetic operators follow `Vector2`'s conventions: vector addition and
+subtraction, scalar multiplication and division, unary `+` and `-`, and exact
+equality.  Division by zero raises `ZeroDivisionError`, even for the zero
+vector.  Addition and subtraction also accept objects supported by the
+constructor.  Vectors are hashable but not ordered.
+
+Iteration yields `x`, `y`, `z`, and `len(v)` is 3.  Indexing accepts `0`, `1`,
+or `2`; as with `Vector2`, negative indices and slices are not supported.
+Only the zero vector is false in a boolean context.
+
+* `v.almost_equal(other, places)` compares cartesian coordinate differences
+  rounded to the given number of decimal places.
+* `v.scaled(scalar)` is equivalent to `v * scalar`.
+* `v.scaled_to_length(r)` sets the length to `abs(r)` and reverses direction
+  if `r` is negative.  A zero length returns the zero vector; scaling the zero
+  vector to a nonzero length raises `ValueError`.
+* `v.normalized()` scales to length 1.  Normalizing zero raises `ValueError`.
+* `v.dot(other)` returns a scalar dot product.
+* `v.cross(other)` returns a `Vector3` perpendicular to both inputs, with
+  direction determined by the right-hand rule.  For example,
+  `Vector3(1, 0, 0).cross(Vector3(0, 1, 0))` is `Vector3(0, 0, 1)`.
+
+Methods may return the original vector or a predefined vector when the
+result permits it; a new allocation is not guaranteed.
+
+### Rotation
+
+`v.rotated(axis, angle)` rotates around a nonzero axis by `angle` radians,
+following the right-hand rule.  The axis can be any object accepted by the
+`Vector3` constructor; its length does not affect the rotation.  Negating
+the axis reverses the direction.
+
+```python
+from math import pi
+
+Vector3(1, 0, 0).rotated((0, 0, 1), pi/2)  # Vector3(0, 1, 0)
+```
+
+A zero axis raises `ValueError`, even when the angle is zero.  As with
+`Vector2`, rotating the zero vector by a nonzero angle raises `ValueError`;
+a zero angle returns the original vector.
+
+### Interpolation
+
+`v.lerp(other, ratio)` interpolates coordinates linearly.
+`v.nlerp(other, ratio)` follows the direction of that linear interpolation
+while interpolating length linearly.  If that direction is zero but the
+requested length is nonzero, `nlerp` raises `ValueError`; for example, this
+happens halfway between equal-length opposite vectors.
+
+`v.slerp(other, ratio, *, axis=None)` interpolates direction along the shorter
+arc and length linearly.  Unlike `Vector2`'s pygame-compatible default, it
+uses negative ratios directly for extrapolation.  It has no `reflected` or
+`epsilon` arguments.
+
+Exactly opposite vectors have no unique rotation plane.  In that case,
+`slerp` raises `ValueError` unless you supply a nonzero perpendicular `axis`.
+The axis's sign selects the half-turn using the right-hand rule; its length
+is ignored.
+
+```python
+a, b = Vector3(1, 0, 0), Vector3(-1, 0, 0)
+a.slerp(b, 0.5, axis=(0, 0, 1))   # approximately Vector3(0, 1, 0)
+a.slerp(b, 0.5, axis=(0, 0, -1))  # approximately Vector3(0, -1, 0)
+```
+
+Opposite directions are detected using a zero cross product and a negative
+dot product, without an angular tolerance.  Perpendicularity of a supplied
+axis allows a normalized dot product of at most `1e-12` in magnitude to
+accommodate floating-point rounding.  Non-opposite vectors determine their
+own plane and ignore the supplied axis's direction.  A supplied zero axis
+is always rejected, including at endpoints.
+
+All three interpolation methods accept other objects supported by the
+constructor.  A ratio of 0 returns `self`, and 1 returns `other` (converted
+to `Vector3` if necessary).  Ratios are not clamped to `[0, 1]`.  `slerp`
+between zero and a nonzero vector raises `ValueError` away from the endpoints;
+interpolating zero with itself returns zero.
+
+### Predefined vectors
+
+`vector3_zero` (also named `vector3_0_0_0`), `vector3_1_0_0`,
+`vector3_0_1_0`, and `vector3_0_0_1` represent the zero vector and the three
+positive unit axes.  Construction returns these existing objects whenever
+the coordinates match exactly.  Their lengths, squared lengths, and hashes
+are already cached.
+
+
 ## Extending vec to handle other types
 
 `vec` does some input verification on its inputs.
-Coordinates--`x`, `y`, `r`, `theta`--are required to be
+Coordinates--`x`, `y`, `z`, `r`, `theta`, as applicable--are required to be
 either `int` or `float`.
 (Technically `theta` can also be `None`.)  This best serves
 the intended use case of `vec` as a 2D vector library for
-game programming in Python.
+game programming in Python.  `permit_coordinate_type` applies to both vector
+classes; accepting a type does not guarantee that it supports every operation
+(such as trigonometry or taking a square root).
 
 If you want to experiment with `vec` for other use cases,
 you may want `vec` to permit other types to be valid
@@ -569,6 +693,17 @@ scalar.
 ## Changelog
 
 **next version** *under development*
+
+* Replace `Vector2`'s construction metaclass with `__new__`, preserving
+  input validation, predefined-vector reuse, and lazy attribute caching.
+* Add `Vector3`: immutable cartesian coordinates, cached lengths and hash,
+  arithmetic, normalization, dot and vector cross products, axis-based
+  rotation, and linear, normalized-linear, and spherical interpolation.
+  Opposite-direction spherical interpolation accepts a perpendicular axis
+  to select the half-turn.  Add predefined zero and unit-axis vectors, tests,
+  and API documentation.
+* Breaking change: dividing a vector by zero now raises `ZeroDivisionError`
+  instead of returning the zero vector.
 
 * 🤖 ChatGPT Astra 6 XHigh did a review of the existing code,
   and added a heaping pile of optimizations, correctness fixes, and new tests:
