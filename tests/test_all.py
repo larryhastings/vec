@@ -36,10 +36,14 @@ vec_dir = preload_local_vec()
 
 
 import inspect
-from math import atan, pi, sqrt, tau
+from itertools import permutations
+from math import atan, copysign, cos, isnan, pi, sin, sqrt, tau
 import os.path
+import operator
 import pathlib
+import subprocess
 import sys
+import textwrap
 import types
 import unittest
 import vec
@@ -119,6 +123,107 @@ class VecTests(unittest.TestCase):
         vc1 = Vector2(1, 0)
         vp1 = Vector2(r=1, theta=0)
         self.assertFalse(vp1 != vc1)
+
+    def test_distinct_vectors_stay_distinct_after_caching(self):
+        # These adjacent Cartesian coordinates round to the same polar values.
+        # Use fromhex rather than nextafter to retain Python 3.6 compatibility.
+        next_float_after_one = float.fromhex('0x1.0000000000001p+0')
+        for order in (('r', 'theta'), ('theta', 'r')):
+            with self.subTest(order=order):
+                a = Vector2(1., 2.)
+                b = Vector2(next_float_after_one, 2.)
+                mapping = {a: 'a', b: 'b'}
+                members = {a, b}
+                original_hashes = hash(a), hash(b)
+
+                for field in (None,) + order:
+                    if field is not None:
+                        getattr(a, field)
+                        getattr(b, field)
+                    self.assertFalse(a == b)
+                    self.assertFalse(b == a)
+                    self.assertTrue(a != b)
+                    self.assertTrue(b != a)
+                    self.assertEqual((hash(a), hash(b)), original_hashes)
+                    self.assertEqual(len({a, b}), 2)
+                    self.assertEqual(len(members), 2)
+                    self.assertEqual(mapping[a], 'a')
+                    self.assertEqual(mapping[b], 'b')
+
+    def test_equal_vectors_stay_equal_after_caching(self):
+        for order in (('r', 'theta'), ('theta', 'r')):
+            with self.subTest(order=order):
+                a = Vector2(r=3., theta=0.1)
+                b = Vector2(a.x, a.y)
+                # A Cartesian -> polar round trip can change the last bits.
+                # Equality must still be based on the unchanged coordinates.
+                mapping = {a: 'value'}
+                members = {a}
+                original_hashes = hash(a), hash(b)
+
+                for field in (None,) + order:
+                    if field is not None:
+                        getattr(b, field)
+                    self.assertTrue(a == b)
+                    self.assertTrue(b == a)
+                    self.assertFalse(a != b)
+                    self.assertFalse(b != a)
+                    self.assertEqual(hash(a), hash(b))
+                    self.assertEqual((hash(a), hash(b)), original_hashes)
+                    self.assertEqual(mapping[b], 'value')
+                    self.assertIn(b, members)
+                    self.assertEqual(len({a, b}), 1)
+
+    def test_cache_population_order(self):
+        fields = ('x', 'y', 'r', 'theta', 'r_squared', '_hash')
+        missing = object()
+
+        def raw_cache(v):
+            values = {}
+            for field in fields:
+                try:
+                    values[field] = object.__getattribute__(v, field)
+                except AttributeError:
+                    values[field] = missing
+            return values
+
+        for initial in (
+            dict(x=3., y=4.),
+            dict(r=3., theta=0.1),
+            dict(x=3., y=4., r=5.),
+            dict(r=3., theta=0.1, x=3. * vec.cos(0.1)),
+        ):
+            for order in permutations(fields):
+                with self.subTest(initial=initial, order=order):
+                    v = Vector2(**initial)
+                    before = raw_cache(v)
+                    for field in order:
+                        value = getattr(v, field)
+                        after = raw_cache(v)
+                        self.assertIs(after[field], value)
+                        self.assertIs(getattr(v, field), value)
+                        for cached_field, old_value in before.items():
+                            if old_value is not missing:
+                                self.assertIs(after[cached_field], old_value)
+                        self.assertEqual(v._cartesian,
+                                         sum(after[f] is not missing for f in ('x', 'y')))
+                        self.assertEqual(v._polar,
+                                         sum(after[f] is not missing for f in ('r', 'theta')))
+                        before = after
+
+    def test_raw_cache_inspection_does_not_compute(self):
+        for initial, missing_fields in (
+            (dict(x=3., y=4.), ('r', 'theta', 'r_squared', '_hash')),
+            (dict(r=3., theta=0.1), ('x', 'y', 'r_squared', '_hash')),
+        ):
+            v = Vector2(**initial)
+            counts = v._cartesian, v._polar
+            for _ in range(2):
+                for field in missing_fields:
+                    with self.subTest(initial=initial, field=field):
+                        with self.assertRaises(AttributeError):
+                            object.__getattribute__(v, field)
+            self.assertEqual((v._cartesian, v._polar), counts)
 
     def test_white_box_testing(self):
         sentinel = FalseSentinel()
@@ -594,6 +699,56 @@ class VecTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             vec.normalize_polar(0, pi)
 
+    def test_normalize_angle_boundaries(self):
+        below_pi = float.fromhex('0x1.921fb54442d17p+1')
+        above_pi = float.fromhex('0x1.921fb54442d19p+1')
+        tiny = float.fromhex('0x0.0000000000001p-1022')
+        for theta in (0.0, -0.0, tiny, -tiny, below_pi, -below_pi, -pi):
+            with self.subTest(theta=theta):
+                result = vec.normalize_angle(theta)
+                self.assertEqual(result, theta)
+                self.assertEqual(copysign(1, result), copysign(1, theta))
+        self.assertEqual(vec.normalize_angle(pi), -pi)
+        self.assertEqual(vec.normalize_angle(above_pi), -below_pi)
+        self.assertEqual(vec.normalize_angle(-above_pi), below_pi)
+        self.assertTrue(isnan(vec.normalize_angle(float('nan'))))
+
+    def test_normalize_angle_large_and_infinite(self):
+        # Run separately so a regression to repeated subtraction fails the
+        # test instead of hanging the entire suite indefinitely.
+        script = textwrap.dedent('''
+            import math
+            import unittest
+            import vec
+            from vec import Vector2
+
+            check = unittest.TestCase()
+            for theta in (math.tau * 2**100, -math.tau * 2**100,
+                          math.tau * 2**1000, -math.tau * 2**1000):
+                check.assertEqual(vec.normalize_angle(theta), 0)
+                check.assertEqual(Vector2(r=2, theta=theta), Vector2(2, 0))
+                check.assertEqual(Vector2(3, 4).rotated(theta), Vector2(3, 4))
+
+            for theta in (1e300, -1e300):
+                result = vec.normalize_angle(theta)
+                check.assertTrue(-math.pi <= result < math.pi)
+                check.assertEqual(vec.normalize_angle(result), result)
+                check.assertEqual(Vector2(r=2, theta=theta).theta, result)
+
+            for theta in (float('inf'), -float('inf')):
+                with check.assertRaises(ValueError):
+                    vec.normalize_angle(theta)
+                with check.assertRaises(ValueError):
+                    Vector2(r=2, theta=theta)
+                with check.assertRaises(ValueError):
+                    Vector2(3, 4).rotated(theta)
+        ''')
+        result = subprocess.run([sys.executable, '-B', '-c', script],
+                                cwd=str(vec_dir), timeout=5,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                universal_newlines=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_repr(self):
         def test(s, **kwargs):
             v = Vector2(**kwargs)
@@ -617,6 +772,11 @@ class VecTests(unittest.TestCase):
         test("Vector2(x=3, r=1, theta=0.1)", x=3, r=1, theta=0.1)
         test("Vector2(y=3, r=1, theta=0.1)", y=3, r=1, theta=0.1)
 
+        # Even unsupported numeric inputs should remain inspectable when
+        # repr's integer-formatting shortcut cannot convert a coordinate.
+        test("Vector2(nan, 5)", x=float('nan'), y=5)
+        test("Vector2(1, nan)", x=1, y=float('nan'))
+
         vector2_zero_repr = "Vector2(0, 0)"
         self.assertEqual(vector2_zero_repr, repr(vector2_zero))
         test(vector2_zero_repr, x=0, y=0)
@@ -635,6 +795,36 @@ class VecTests(unittest.TestCase):
             v.theta = 0.5
         with self.assertRaises(TypeError):
             v.r_squared = 2
+
+    def test_delattr(self):
+        missing = object()
+        factories = (
+            lambda: Vector2(3., 4.),
+            lambda: Vector2(r=3., theta=0.1),
+            lambda: vector2_zero,
+            lambda: vector2_1_0,
+        )
+        for make in factories:
+            for field in Vector2.__slots__ + ['unknown_attribute']:
+                v = make()
+                with self.subTest(vector=repr(v), field=field):
+                    try:
+                        original = object.__getattribute__(v, field)
+                    except AttributeError:
+                        original = missing
+                    try:
+                        with self.assertRaisesRegex(TypeError, 'immutable'):
+                            delattr(v, field)
+                        if original is missing:
+                            with self.assertRaises(AttributeError):
+                                object.__getattribute__(v, field)
+                        else:
+                            self.assertIs(object.__getattribute__(v, field), original)
+                    finally:
+                        # Keep singleton fixtures intact even against the old,
+                        # buggy implementation when demonstrating this failure.
+                        if original is not missing:
+                            object.__setattr__(v, field, original)
 
     def test_getattr(self):
         # test the calculated values
@@ -673,9 +863,18 @@ class VecTests(unittest.TestCase):
         test_add_is(rp1, Vector2(r=-1, theta=1), vector2_zero)
 
     def test_sub(self):
-        def test_sub(s1, s2, result):
-            self.assertEqual(s1 - s2, result)
-            self.assertEqual(s2 - s1, -result)
+        def test_sub(s1, s2, result, polar=False):
+            def check(actual, expected):
+                if polar:
+                    # Rotating a polar direction by pi can round differently
+                    # from negating its cached Cartesian coordinates.
+                    self.assertEqual(actual.polar(), expected.polar())
+                    self.assertAlmostEqual(actual.x, expected.x, places=places)
+                    self.assertAlmostEqual(actual.y, expected.y, places=places)
+                else:
+                    self.assertEqual(actual, expected)
+            check(s1 - s2, result)
+            check(s2 - s1, -result)
 
         def test_sub_is(s1, s2, result):
             self.assertIs(s1 - s2, result)
@@ -691,8 +890,8 @@ class VecTests(unittest.TestCase):
         rp1 = Vector2(r=1, theta=1)
         rp1a = Vector2(r=1, theta=1)
 
-        test_sub(rp1*2, rp1, rp1)
-        test_sub(rp1, -rp1, rp1 * 2)
+        test_sub(rp1*2, rp1, rp1, polar=True)
+        test_sub(rp1, -rp1, rp1 * 2, polar=True)
         test_sub_is(rp1, rp1, vector2_zero)
         test_sub_is(rp1, rp1a, vector2_zero)
         test_sub_is(rp1a, rp1, vector2_zero)
@@ -800,6 +999,46 @@ class VecTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             vp / vp
 
+
+    def test_operations_do_not_populate_source_cache(self):
+        fields = ('x', 'y', 'r', 'theta', 'r_squared')
+        missing = object()
+
+        def snapshot(v):
+            values = []
+            for field in Vector2.__slots__:
+                try:
+                    values.append(object.__getattribute__(v, field))
+                except AttributeError:
+                    values.append(missing)
+            return values
+
+        operations = (lambda v: v * 2.5, lambda v: v / -3,
+                      operator.neg, lambda v: v.rotated(0.3), repr)
+        for polar in (False, True):
+            for mask in range(1 << len(fields)):
+                for operation in operations:
+                    with self.subTest(polar=polar, mask=mask,
+                                      operation=operation):
+                        v = (Vector2(r=5.5, theta=0.7) if polar
+                             else Vector2(3.25, 4.75))
+                        for index, field in enumerate(fields):
+                            if mask & (1 << index):
+                                getattr(v, field)
+                        before = snapshot(v)
+                        operation(v)
+                        after = snapshot(v)
+                        for old, new in zip(before, after):
+                            self.assertIs(old, new)
+
+    def test_scaling_preserves_ordinary_cached_squares(self):
+        for operation, expected in ((operator.mul, 100.),
+                                    (operator.truediv, 6.25)):
+            source = Vector2(3., 4.)
+            source.r_squared
+            result = operation(source, 2.)
+            self.assertEqual(object.__getattribute__(result, 'r_squared'),
+                             expected)
 
     def test_pos(self):
         v = Vector2(1, 5)
@@ -941,6 +1180,62 @@ class VecTests(unittest.TestCase):
         # this one is allowed!
         self.assertIs(vector2_zero.scaled_to_length(0), vector2_zero)
 
+
+    def test_scaled_to_same_length_on_axes(self):
+        for x, y in ((5, 0), (-5, 0), (0, 5), (0, -5)):
+            for cached in (False, True):
+                with self.subTest(x=x, y=y, cached=cached):
+                    v = Vector2(x, y)
+                    if cached:
+                        v.polar()
+                    self.assertIs(v.scaled_to_length(5), v)
+                    self.assertEqual(v.scaled_to_length(-5), Vector2(-x, -y))
+
+    def test_scaled_to_negative_length(self):
+        for x, y in ((3, 0), (-3, 0), (0, 3), (0, -3),
+                     (3, 4), (-3, 4), (3, -4), (-3, -4)):
+            length = sqrt(x*x + y*y)
+            for cached in (False, True):
+                with self.subTest(x=x, y=y, cached=cached):
+                    v = Vector2(x, y)
+                    if cached:
+                        v.polar()
+                        hash(v)
+                    result = v.scaled_to_length(-length)
+                    self.assertAlmostEqual(result.x, -x, places=places)
+                    self.assertAlmostEqual(result.y, -y, places=places)
+                    self.assertAlmostEqual(result.r, length, places=places)
+
+    def test_normalized_quadrants_and_axes(self):
+        for x, y in ((3, 0), (-3, 0), (0, 3), (0, -3),
+                     (3, 4), (-3, 4), (3, -4), (-3, -4)):
+            length = sqrt(x*x + y*y)
+            for polar in (False, True):
+                with self.subTest(x=x, y=y, polar=polar):
+                    v = Vector2(x, y)
+                    if polar:
+                        v = Vector2(r=length, theta=v.theta)
+                    result = v.normalized()
+                    self.assertAlmostEqual(result.x, x/length, places=places)
+                    self.assertAlmostEqual(result.y, y/length, places=places)
+                    self.assertAlmostEqual(result.r, 1, places=places)
+
+    def test_interpolation_endpoints_and_zero(self):
+        v = Vector2(3, 4)
+        for name in ('lerp', 'vec_slerp', 'nlerp'):
+            for a, b in ((v, vector2_zero), (vector2_zero, v),
+                         (v, -v), (vector2_zero, vector2_zero)):
+                with self.subTest(method=name, a=a, b=b):
+                    self.assertIs(getattr(a, name)(b, 0), a)
+                    self.assertIs(getattr(a, name)(b, 1), b)
+        self.assertEqual(vector2_zero.nlerp(v, 0.5), Vector2(1.5, 2))
+        self.assertEqual(v.nlerp(vector2_zero, 0.5), Vector2(1.5, 2))
+        with self.assertRaises(ValueError):
+            vector2_zero.vec_slerp(v, 0.5)
+        with self.assertRaises(ValueError):
+            v.vec_slerp(vector2_zero, 0.5)
+        with self.assertRaises(ValueError):
+            v.nlerp(-v, 0.5)
 
     def test_normalized(self):
         v = Vector2(r=1, theta=3)
@@ -1143,6 +1438,125 @@ class VecTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             very_small_v.pygame_slerp(v1, 0.5)
 
+
+    def test_pygame_slerp_opposite_policy(self):
+        for x, y in ((1, 0), (0, 1), (3, 4), (-3, 4)):
+            a, b = Vector2(x, y), Vector2(-2*x, -2*y)
+            with self.subTest(x=x, y=y):
+                with self.assertRaises(ValueError):
+                    a.slerp(b, 0.5)
+                for policy, sign in (('clockwise', -1),
+                                     ('counter-clockwise', 1)):
+                    for reflected in (None, False, True):
+                        result = a.slerp(b, 0.5, reflected=reflected,
+                                         opposite=policy)
+                        self.assertAlmostEqual(result.x, -sign*y*1.5, places=places)
+                        self.assertAlmostEqual(result.y, sign*x*1.5, places=places)
+                    self.assertIs(a.slerp(b, 0, opposite=policy), a)
+                    self.assertIs(a.slerp(b, 1, opposite=policy), b)
+
+        a, b = Vector2(2, 0), Vector2(-4, 0)
+        for policy, sign in (('clockwise', -1), ('counter-clockwise', 1)):
+            # Default negative ratios are reflected to positive ratios;
+            # explicit reflected values preserve the sign of the ratio.
+            result = a.slerp(b, -0.5, opposite=policy)
+            self.assertAlmostEqual(result.y, sign*3, places=places)
+            for reflected in (False, True):
+                result = a.slerp(b, -0.5, reflected=reflected, opposite=policy)
+                self.assertAlmostEqual(result.y, -sign, places=places)
+
+        for policy in ('raise', 'clockwise', 'counter-clockwise'):
+            # Preserve the upstream near-pi tolerance for pygame_slerp.
+            with self.assertRaises(ValueError):
+                Vector2(1, 0).slerp(Vector2(-1, 1e-8), 0.5, opposite=policy)
+            result = Vector2(2, 0).slerp(Vector2(0, 2), 0.5, opposite=policy)
+            self.assertAlmostEqual(result.x, sqrt(2), places=places)
+            self.assertAlmostEqual(result.y, sqrt(2), places=places)
+        for invalid in (None, '', 'invalid', [], 1):
+            for ratio in (0, 0.5, 1):
+                with self.assertRaises(ValueError):
+                    a.slerp(b, ratio, opposite=invalid)
+
+    def test_vec_slerp_opposite_policy(self):
+        for x, y in ((1, 0), (0, 1), (3, 4), (-3, 4)):
+            for cached in (False, True):
+                a, b = Vector2(x, y), Vector2(-x, -y)
+                if cached:
+                    a.polar()
+                    b.polar()
+                with self.subTest(x=x, y=y, cached=cached):
+                    with self.assertRaises(ValueError):
+                        a.vec_slerp(b, 0.5)
+                    with self.assertRaises(ValueError):
+                        a.vec_slerp(b, 0.5, opposite='raise')
+                    for policy, sign in (('clockwise', -1),
+                                         ('counter-clockwise', 1)):
+                        result = a.vec_slerp(b, 0.5, opposite=policy)
+                        self.assertAlmostEqual(result.x, -sign*y, places=places)
+                        self.assertAlmostEqual(result.y, sign*x, places=places)
+                        self.assertAlmostEqual(result.r, a.r, places=places)
+                        self.assertIs(a.vec_slerp(b, 0, opposite=policy), a)
+                        self.assertIs(a.vec_slerp(b, 1, opposite=policy), b)
+                    self.assertIs(a.vec_slerp(b, 0), a)
+                    self.assertIs(a.vec_slerp(b, 1), b)
+
+    def test_vec_slerp_opposite_lengths_and_extrapolation(self):
+        a, b = Vector2(2, 0), Vector2(-4, 0)
+        for policy, sign in (('clockwise', -1), ('counter-clockwise', 1)):
+            halfway = a.vec_slerp(b, 0.5, opposite=policy)
+            self.assertAlmostEqual(halfway.x, 0, places=places)
+            self.assertAlmostEqual(halfway.y, sign*3, places=places)
+            beyond = a.vec_slerp(b, 1.5, opposite=policy)
+            self.assertAlmostEqual(beyond.x, 0, places=places)
+            self.assertAlmostEqual(beyond.y, -sign*5, places=places)
+
+    def test_vec_slerp_nearly_opposite(self):
+        for sign in (-1, 1):
+            a, b = Vector2(1, 0), Vector2(-1, sign*1e-8)
+            for policy in ('raise', 'clockwise', 'counter-clockwise'):
+                with self.subTest(sign=sign, policy=policy):
+                    result = a.vec_slerp(b, 0.5, opposite=policy)
+                    self.assertAlmostEqual(result.x, 5e-9, places=places)
+                    self.assertAlmostEqual(result.y, sign, places=places)
+                    self.assertAlmostEqual(result.r, 1, places=places)
+                    reverse = b.vec_slerp(a, 0.5, opposite=policy)
+                    self.assertAlmostEqual(result.x, reverse.x, places=places)
+                    self.assertAlmostEqual(result.y, reverse.y, places=places)
+
+    def test_vec_slerp_policy_validation(self):
+        a, b = Vector2(2, 0), Vector2(0, 2)
+        for invalid in (None, '', 'Clockwise', 'counterclockwise', [], 1):
+            for ratio in (0, 0.5, 1):
+                with self.subTest(invalid=invalid, ratio=ratio):
+                    with self.assertRaises(ValueError):
+                        a.vec_slerp(b, ratio, opposite=invalid)
+        with self.assertRaises(TypeError):
+            a.vec_slerp(b, 0.5, 'clockwise')
+        for policy in ('raise', 'clockwise', 'counter-clockwise'):
+            result = a.vec_slerp(b, 0.5, opposite=policy)
+            self.assertAlmostEqual(result.x, sqrt(2), places=places)
+            self.assertAlmostEqual(result.y, sqrt(2), places=places)
+
+    def test_vec_slerp_preserves_unequal_length_weights(self):
+        # At a right angle, the original sine weights are cos(t*pi/2)
+        # and sin(t*pi/2); the length is not interpolated linearly.
+        a, b = Vector2(2, 0), Vector2(0, 4)
+        for ratio in (-0.5, 0.25, 0.5, 0.75, 1.5):
+            with self.subTest(ratio=ratio):
+                result = a.vec_slerp(b, ratio)
+                self.assertAlmostEqual(result.x, 2*cos(ratio*pi/2), places=places)
+                self.assertAlmostEqual(result.y, 4*sin(ratio*pi/2), places=places)
+                reverse = b.vec_slerp(a, 1-ratio)
+                self.assertAlmostEqual(result.x, reverse.x, places=places)
+                self.assertAlmostEqual(result.y, reverse.y, places=places)
+
+    def test_vec_slerp_parallel_and_nearly_parallel(self):
+        a, b = Vector2(3, 4), Vector2(6, 8)
+        self.assertEqual(a.vec_slerp(b, 0.5), Vector2(4.5, 6))
+        a, b = Vector2(1, 0), Vector2(1, 1e-8)
+        result = a.vec_slerp(b, 0.5)
+        self.assertAlmostEqual(result.x, 1, places=places)
+        self.assertAlmostEqual(result.y, 5e-9, places=places)
 
     def test_nlerp(self):
         v1 = Vector2(0, 2)

@@ -17,7 +17,7 @@ Features:
 * Attributes of `Vector2` objects are lazily-computed where possible.
 * `Vector2` objects effortlessly support both cartesian and polar coordinates.
 
-`vec` supports Python 3.6+, and passes its unit test suite with 100% coverage.
+`vec` supports Python 3.6+, and passes its unit test suite with 100% statement coverage.
 
 
 ## Why Another Vector Class?
@@ -88,7 +88,7 @@ its polar coordinates.  This:
     v = vec.Vector2(0, 1)
     print(v.theta, v.r)
 
-prints `1.5707963267948966 1.0`.  That first number is π/2 (approximately).
+prints `1.5707963267948966 1`.  That first number is π/2 (approximately).
 
 Conversely, you can define a `Vector2` object using polar
 coordinates, then examine its cartesian coordinates:
@@ -96,9 +96,10 @@ coordinates, then examine its cartesian coordinates:
     v2 = vec.Vector2(r=1, theta=math.pi/2)
     print(v2.x, v2.y)
 
-This prints `6.123233995736766e-17 1.0`.  Conceptually this should
-print `0.0, 1.0`--but `math.pi` is only an approximation, which
-means our result has an infinitesimal error.
+This prints `0 1`.  `Vector2` has special-cased some specific
+common vectors, like this one.  But most of the time, conversions
+between polar and cartesian coordinates are subject to
+floating-point rounding.
 
 ### Implementation Details
 
@@ -116,7 +117,7 @@ is only as expensive as an attribute lookup on a conventional object.
 
 Operations on `Vector2` objects compute their result
 using the cheapest approach.  If you have a `Vector2` object
-defined using polar coordinates, and you call `.rotate()` or `.scale()`
+defined using polar coordinates, and you call `.rotated()` or `.scaled()`
 on it, all the math is done in the polar domain.  On the other
 hand, adding vectors is *almost* always done in the cartesian domain,
 so if you add a polar vector to any other vector, its cartesian
@@ -133,15 +134,17 @@ performing your vector math as cheaply and accurately as possible.
 
 ## The API
 
-`Vector2(x=None, y=None, *, r=None, theta=None, r_squared=None)`
+`Vector2(x=..., y=..., *, r=..., theta=..., r_squared=...)`
 
 <dl><dd>
 
-Constructs a `Vector2` object.  You may pass in as many or as
-few of these arguments as you like; however, you *must* pass in
-*either* both `x` and `y` *or* both `r` and `theta`.
+Constructs a `Vector2` object.  All five arguments are optional.
+Calling `Vector2()` with no arguments returns the zero vector.
+Otherwise, when supplying individual coordinates, you *must*
+pass in *either* both `x` and `y` *or* both `r` and `theta`;
+additional attributes are optional.
 Any attributes not passed in at construction time will be lazily
-computed at the time they are evaluated.
+computed when they are evaluated.
 
 You can also pass in a single object which will initialize the
 vector.  Supported objects include:
@@ -153,12 +156,15 @@ vector.  Supported objects include:
   will be used as `'x'` and `'y'` respectively.
 
 `Vector2` only does *some* validation of its arguments.
-It ensures that `r` and `theta` are normalized.  However,
-it doesn't check that `(x, y)` and `(r, theta)` describe the
-same vector.
+This is intentional; we assume you're using sane values,
+not giant numbers (4e200) or special values (NaN, inf).
+It ensures that `r` is non-negative, and `theta` is normalized
+to `-pi <= theta < pi`.  However, it doesn't check that
+`(x, y)` and `(r, theta)` describe the same vector.
 If you pass in `x` and `y`, and also pass in a `theta` and `r`
 that don't match, you'll get back the `Vector2` that you
 asked for.  Good luck!
+
 </dd></dl>
 
 ### Attributes
@@ -206,7 +212,7 @@ vectors evaluate to `True`.
 
 * `v1 + v2` adds the two vectors together.
 * `v1 - v2` subtracts the right vector from the left vector.
-* `v1 * scalar` mulitplies the vector by a scalar amount, equivalent to `v1.scale(scalar)`.
+* `v1 * scalar` multiplies the vector by a scalar amount, equivalent to `v1.scaled(scalar)`.
 * `v1 / scalar` divides the vector by a scalar amount.
 * `+v1` is exactly the same as `v1`.
 * `-v1` returns the opposite of `v1`, such that `v1 + (-v1)` should be the zero vector.
@@ -225,9 +231,12 @@ vectors evaluate to `True`.
 * `v[1]` and `v.y` evaluate to the same number.
 * `list(v)` is the same as `[v.x, v.y]`.
 
+`Vector2` always uses Cartesian coordinates for equality testing
+and hashing, for consistency.
+
 ### Class methods
 
-`vec.from_polar(r, theta)`
+`Vector2.from_polar(r, theta)`
 
 <dl><dd>
 
@@ -274,6 +283,9 @@ Returns a new `Vector2` object, equivalent to the original vector multiplied by 
 <dl><dd>
 
 Returns a new `Vector2` object, equivalent to the original vector with its length set to `r`.
+If `r` is negative, `scaled_to_length` reverses the direction and sets the length to
+`abs(r)`.  A zero `r` returns the zero vector.  Scaling the zero vector to a nonzero
+length raises `ValueError`.
 </dd></dl>
 
 `Vector2.normalized()`
@@ -281,6 +293,8 @@ Returns a new `Vector2` object, equivalent to the original vector with its lengt
 <dl><dd>
 
 Returns a new `Vector2` object, equivalent to the original vector scaled to length 1.
+
+The zero vector doesn't have a direction, so an attempt to normalize it raises `ValueError`.
 </dd></dl>
 
 `Vector2.rotated(theta)`
@@ -334,7 +348,7 @@ Note that it's not an error to specify a `ratio` less than `0` or greater than `
 `ratio` isn't clamped to this range.
 </dd></dl>
 
-`Vector2.slerp(other, ratio, *, reflected=None, epsilon=1e-6)`
+`Vector2.slerp(other, ratio, *, reflected=None, epsilon=1e-6, opposite='raise')`
 
 <dl><dd>
 
@@ -358,9 +372,64 @@ This both specifies which path to trace and disables reflecting `ratio` around `
 `reflected=True` selects the path normally traced by negative ratios.
 
 
-(A previous implementation of `slerp` produced different results; it's still available,
-with the new name `Vector2.vec_slerp`.  It doesn't accept the `epsilon` argument.)
+For exactly opposite directions, `opposite` accepts `'raise'` (the default),
+`'clockwise'`, or `'counter-clockwise'`.  The direction names use the mathematical
+convention with positive Y up.  An explicit direction overrides `reflected`
+for exactly opposite vectors and interpolates their lengths linearly.
+Negative ratios are still negated when `reflected=None`; specify a boolean
+`reflected` value to use actual negative ratios.
 
+The default preserves pygame's rejection of angles within `epsilon` of pi.
+A direction choice resolves exactly opposite vectors (zero Cartesian cross
+product and negative dot product); it does not override this rejection for
+merely near-opposite vectors.  Invalid `opposite` settings raise `ValueError`,
+including at the endpoints.
+
+The original geometric interpolation is available as `Vector2.vec_slerp`,
+documented below.  `Vector2.slerp` remains an alias of `Vector2.pygame_slerp`.
+
+</dd></dl>
+
+
+`Vector2.vec_slerp(other, ratio, *, opposite='raise')`
+
+<dl><dd>
+
+This is vec's original geometric interpolation, with a stabilized calculation.
+It does not accept `reflected` or `epsilon`.
+
+Returns a vector representing a spherical interpolation between `self` and `other`, according
+to the scalar ratio `ratio`.  `ratio` should be a value between (and including) `0` and `1`.
+If `ratio` is `0`, this returns `self`.  If `ratio` is `1`, this returns `other`.
+
+If `self` and `other` are exactly opposing vectors,
+there are two possible valid interpolations, and `Vector2` doesn't know
+which one you want.  Choose the result you prefer by specifying the
+keyword-only argument `opposite`:
+
+* `'raise'` (default): raise `ValueError` because there is no unique arc.
+* `'clockwise'`: follow the arc with decreasing polar angle.
+* `'counter-clockwise'`: follow the arc with increasing polar angle.
+
+For example, `Vector2(1, 0).vec_slerp(Vector2(-1, 0), 0.5,
+opposite='counter-clockwise')` returns approximately `(0, 1)`.
+These direction names use the mathematical convention with positive Y up.
+The opposite-direction case is detected by a zero Cartesian cross product
+and a negative dot product, without applying an angular tolerance.
+Nearly opposite vectors follow their shorter arc regardless of the setting.
+Invalid settings raise `ValueError`, including at the endpoints.
+
+For a selected opposite-direction arc, length is interpolated linearly.
+Elsewhere, `vec_slerp` retains geometric sine weighting: equal-length vectors
+trace a circle, but unequal-length vectors do **not** generally interpolate
+length linearly and can produce large lengths near opposite directions.
+
+The endpoint shortcuts apply even to opposite or zero vectors.  Interpolating
+between a zero vector and a nonzero vector at other ratios raises `ValueError`;
+interpolating the zero vector with itself returns that same zero vector.
+
+Note that it's not an error to specify a `ratio` less than `0` or greater than `1`, and
+`ratio` is not clamped to this range.
 </dd></dl>
 
 
@@ -478,7 +547,55 @@ Note that the types you extend `vec` with in this manner
 should behave like numeric types, like `int` and `float`.
 
 
+## Numerical limits
+
+`vec` is intended for use in video games, with ordinary game coordinates.
+That means it's concerned with both speed and correctness.  So, `vec`
+works hard to be fast, and it produces correct results... given reasonable
+inputs.  But it doesn't guard every operation against overflow or underflow;
+nor does `vec` clamp coordinates to enforce a fixed minimum or maximum.
+All that would just slow it down, adding training wheels that a well-written
+game doesn't need or want.  So it's up to you to ensure that intermediate values,
+including squared coordinates, squared lengths, and squared scale factors,
+all remain within a usable floating-point range.
+
+Specifically: don't expect magnitudes such as `4e200` or `4e-200` to work
+reliably.  Extreme values can produce zero, infinity, NaN, or exceptions;
+results can also depend on which derived attributes have already been cached.
+For example, dividing by `1e-200` can raise `ZeroDivisionError` when a
+cached squared length is divided by the underflowed square of that nonzero
+scalar.
+
 ## Changelog
+
+**next version** *under development*
+
+* 🤖 ChatGPT Astra 6 XHigh did a review of the existing code,
+  and added a heaping pile of optimizations, correctness fixes, and new tests:
+
+    * Add the keyword-only `slerp` and `vec_slerp` setting `opposite`, accepting `'raise'` (the
+      default), `'clockwise'`, or `'counter-clockwise'`.  Stabilize `vec_slerp` interpolation
+      near opposite directions using `atan2` and an orthogonal basis, while
+      preserving geometric weighting for unequal-length, non-opposite vectors.
+    * Fix scaling a negative-axis vector to a negative length equal to its
+      nonzero coordinate: the shortcut incorrectly returned the original vector
+      instead of reversing it.  Add normalization and interpolation regressions
+      for axes, quadrants, endpoints, and zero vectors.
+    * Simplify construction with direct slot initialization.  Use existing cache
+      counters to avoid unnecessary missing-attribute exceptions during scaling,
+      negation, rotation, and `repr`, preserving lazy caching and immutability.
+    * Document numerical limits for extreme magnitudes and intermediate squares.
+    * Fix angle normalization hanging on large finite angles and infinities.
+      Use remainder reduction, reject infinite angles with `ValueError`, and
+      add regressions for boundary values, large angles, and rotation.
+    * Fix `==` and `!=` to consistently compare Cartesian coordinates, as
+      documented.  Populating the polar cache could previously change equality,
+      causing inconsistent hashes for equal vectors or failed dictionary lookups.
+    * Reject attribute deletion, just as attribute assignment is rejected, to
+      preserve immutability and protect cached values and predefined vectors.
+    * Add regression tests for equality, hashing, deletion, raw cache inspection,
+      and cache population in different attribute-read orders.
+
 
 **0.7.1** *2024/09/15*
 

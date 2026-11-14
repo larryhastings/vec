@@ -54,7 +54,7 @@ A 2-dimensional vector class designed to be convenient
 and performant enough for use in video games.
 """
 
-from math import acos, atan2, cos, fabs, pi, sin, sqrt, tau
+from math import acos, atan2, cos, fabs, fmod, pi, sin, sqrt, tau
 from collections.abc import Iterable, Set, Mapping
 
 __version__ = "0.7.1"
@@ -72,12 +72,17 @@ def normalize_angle(theta):
     """
     we keep theta in the range
         -pi <= theta < pi
-    (symmetric with two's compliment)
+    Infinite angles raise ValueError; NaN passes through unchanged.
     """
-    while theta >= pi:
-        theta -= tau
-    while theta < negative_pi:
-        theta += tau
+    if theta >= pi or theta < negative_pi:
+        # Repeated subtraction can round back to the original value and
+        # loop forever. Reduce modulo the floating-point tau in one step.
+        # fmod preserves the sign, avoiding loss of tiny negative angles.
+        theta = fmod(theta, tau)
+        if theta >= pi:
+            theta -= tau
+        elif theta < negative_pi:
+            theta += tau
     return theta
 
 def negate_angle(theta):
@@ -361,29 +366,21 @@ class Vector2(metaclass=Vector2Metaclass):
     __slots__ = ['x', 'y', 'r', 'theta', 'r_squared', '_cartesian', '_polar', '_hash']
 
     def __init__(self, x=_sentinel, y=_sentinel, *, r=_sentinel, theta=_sentinel, r_squared=_sentinel):
-        # we don't have to handle vector2_zero here.
-        # (or any input validation whatsoever.)
-        # it's all handled in the metaclass.
-
-        _set = object.__setattr__
-        def _set(self, name, value):
-            object.__setattr__(self, name, value)
-        def set(name, value):
-            if value is not _sentinel:
-                _set(self, name, value)
-
-        set('x', x)
-        set('y', y)
-        set('r', r)
-        set('theta', theta)
-        set('r_squared', r_squared)
-        # _cartesian and _polar are *counters*
-        # if they're == 2, this vector has that coordinate set
-        # (e.g. if _cartesian == 2, this vector has a complete set of cartesian coordinates)
-        _cartesian = (x is not _sentinel) + (y is not _sentinel)
-        _set(self, '_cartesian', _cartesian)
-        _polar = (r is not _sentinel) + (theta is not _sentinel)
-        _set(self, '_polar', _polar)
+        # Validation and predefined-vector selection happen in the metaclass.
+        set_attr = object.__setattr__
+        if x is not _sentinel:
+            set_attr(self, 'x', x)
+        if y is not _sentinel:
+            set_attr(self, 'y', y)
+        if r is not _sentinel:
+            set_attr(self, 'r', r)
+        if theta is not _sentinel:
+            set_attr(self, 'theta', theta)
+        if r_squared is not _sentinel:
+            set_attr(self, 'r_squared', r_squared)
+        # Each counter records how many coordinates of that pair are cached.
+        set_attr(self, '_cartesian', (x is not _sentinel) + (y is not _sentinel))
+        set_attr(self, '_polar', (r is not _sentinel) + (theta is not _sentinel))
 
     def __repr__(self):
         fields = []
@@ -396,7 +393,7 @@ class Vector2(metaclass=Vector2Metaclass):
         if self._cartesian == 2:
             x = self.x
             y = self.y
-        else:
+        elif self._cartesian:
             try:
                 x = get('x')
             except AttributeError:
@@ -407,16 +404,16 @@ class Vector2(metaclass=Vector2Metaclass):
             except AttributeError:
                 y = sentinel
 
+        else:
+            x = y = sentinel
+
         suppress_remaining = False
         if (x is not sentinel) and (y is not sentinel):
             fields.append(f"{x}, {y}")
-            suppress_remaining = (int(x) == x) and (int(y) == y)
-
-            # I can't get this to raise ValueError, I think that's impossible
-            # try:
-            #     suppress_remaining = (int(x) == x) and (int(y) == y)
-            # except ValueError:
-            #     pass
+            try:
+                suppress_remaining = (int(x) == x) and (int(y) == y)
+            except ValueError:
+                pass
         else:
             if x is not sentinel:
                 fields.append(f"x={x}")
@@ -427,8 +424,10 @@ class Vector2(metaclass=Vector2Metaclass):
             if self._polar == 2:
                 fields.append(f"r={self.r}, theta={self.theta}")
                 remaining_fields = ('r_squared',)
-            else:
+            elif self._polar:
                 remaining_fields = ('r', 'theta', 'r_squared')
+            else:
+                remaining_fields = ('r_squared',)
             for attr in remaining_fields:
                 try:
                     value = get(attr)
@@ -594,6 +593,9 @@ class Vector2(metaclass=Vector2Metaclass):
     def __setattr__(self, name, value):
         raise TypeError(f"{self.__class__.__name__}: object is immutable")
 
+    def __delattr__(self, name):
+        raise TypeError(f"{self.__class__.__name__}: object is immutable")
+
 
     ##
     ## iterator protocol
@@ -633,11 +635,9 @@ class Vector2(metaclass=Vector2Metaclass):
         if not isinstance(other, Vector2):
             return False
 
-        # if both are polar, do the comparison in polar.
-        # otherwise do the comparison in cartesian.
-        # (if only one of the two vectors is cartesian, force the other to be cartesian too.)
-        if self._polar == other._polar == 2:
-            return (self.theta == other.theta) and (self.r == other.r)
+        # Compare the same coordinates used by __hash__.  Polar conversion
+        # can round distinct coordinates to identical values (or vice versa),
+        # so populating that cache must not change equality.
         return (self.x == other.x) and (self.y == other.y)
 
     def __ne__(self, other):
@@ -645,11 +645,7 @@ class Vector2(metaclass=Vector2Metaclass):
             return False
         if not isinstance(other, Vector2):
             return True
-        # if both are polar, do the comparison in polar.
-        # otherwise do the comparison in cartesian.
-        # (if only one of the two vectors is cartesian, force the other to be cartesian too.)
-        if self._polar == other._polar == 2:
-            return (self.theta != other.theta) or (self.r != other.r)
+        # Use Cartesian coordinates consistently with __eq__ and __hash__.
         return (self.x != other.x) or (self.y != other.y)
 
     def __add__(self, other):
@@ -751,7 +747,7 @@ class Vector2(metaclass=Vector2Metaclass):
         if self._cartesian == 2:
             kwargs['x'] = self.x * other
             kwargs['y'] = self.y * other
-        else:
+        elif self._cartesian:
             try:
                 kwargs['x'] = get('x') * other
             except AttributeError:
@@ -773,7 +769,7 @@ class Vector2(metaclass=Vector2Metaclass):
                 theta = negate_angle(theta)
             kwargs['r'] = self.r * other
             kwargs['theta'] = theta
-        else:
+        elif self._polar:
             try:
                 theta = get('theta')
                 if other < 0:
@@ -812,7 +808,7 @@ class Vector2(metaclass=Vector2Metaclass):
         if self._cartesian == 2:
             kwargs['x'] = self.x / other
             kwargs['y'] = self.y / other
-        else:
+        elif self._cartesian:
             try:
                 kwargs['x'] = get('x') / other
             except AttributeError:
@@ -834,7 +830,7 @@ class Vector2(metaclass=Vector2Metaclass):
                 theta = negate_angle(theta)
             kwargs['r'] = self.r / other
             kwargs['theta'] = theta
-        else:
+        elif self._polar:
             try:
                 theta = get('theta')
                 if other < 0:
@@ -861,39 +857,37 @@ class Vector2(metaclass=Vector2Metaclass):
     def __neg__(self):
         if self is vector2_zero:
             return vector2_zero
-
-        # preserve all the attributes we can from the original object.
-        self_as_object = super(Vector2, self)
-        get = self_as_object.__getattribute__
-
+        get = super(Vector2, self).__getattribute__
         kwargs = {}
-        try:
-            kwargs['x'] = -get('x')
-        except AttributeError:
-            pass
-
-        try:
-            kwargs['y'] = -get('y')
-        except AttributeError:
-            pass
-
-        try:
-            kwargs['r'] = get('r')
-        except AttributeError:
-            pass
-
-        try:
-            kwargs['theta'] = normalize_angle(get('theta') + pi)
-        except AttributeError:
-            pass
-
+        if self._cartesian == 2:
+            kwargs['x'] = -self.x
+            kwargs['y'] = -self.y
+        elif self._cartesian:
+            try:
+                kwargs['x'] = -get('x')
+            except AttributeError:
+                pass
+            try:
+                kwargs['y'] = -get('y')
+            except AttributeError:
+                pass
+        if self._polar == 2:
+            kwargs['r'] = self.r
+            kwargs['theta'] = normalize_angle(self.theta + pi)
+        elif self._polar:
+            try:
+                kwargs['r'] = get('r')
+            except AttributeError:
+                pass
+            try:
+                kwargs['theta'] = normalize_angle(get('theta') + pi)
+            except AttributeError:
+                pass
         try:
             kwargs['r_squared'] = get('r_squared')
         except AttributeError:
             pass
-
-        result = self.__class__(**kwargs)
-        return result
+        return self.__class__(**kwargs)
 
     def __bool__(self):
         return self is not vector2_zero
@@ -939,14 +933,16 @@ class Vector2(metaclass=Vector2Metaclass):
             # so if either x or y is zero, the other must be nonzero.
             # this is fast *and* exact!
             if not self.x:
-                if self.y == r:
+                y = r if self.y > 0 else -r
+                if self.y == y:
                     return self
-                return self.__class__(0, r if self.y > 0 else -r)
+                return self.__class__(0, y)
 
             if not self.y:
-                if self.x == r:
+                x = r if self.x > 0 else -r
+                if self.x == x:
                     return self
-                return self.__class__(r if self.x > 0 else -r, 0)
+                return self.__class__(x, 0)
 
         if self.r == r:
             return self
@@ -1022,15 +1018,14 @@ class Vector2(metaclass=Vector2Metaclass):
                 **kwargs,
                 )
 
-        try:
-            kwargs['r'] = get('r')
-        except AttributeError:
-            # if r is set, theta won't be set.
-            # so we only check for theta if r isn't set.
+        if self._polar:
             try:
-                kwargs['theta'] = normalize_angle(get('theta') + theta)
+                kwargs['r'] = get('r')
             except AttributeError:
-                pass
+                # if r is set, theta won't be set.
+                # so we only check for theta if r isn't set.
+                # _polar is 1 here, so theta must be cached when r isn't.
+                kwargs['theta'] = normalize_angle(get('theta') + theta)
 
         sin_theta = sin(theta)
         cos_theta = cos(theta)
@@ -1083,13 +1078,14 @@ class Vector2(metaclass=Vector2Metaclass):
             self.y + ((other.y - self.y) * ratio),
             )
 
-    # https://en.wikipedia.org/wiki/Slerp#Geometric_Slerp
-    def vec_slerp(self, other, ratio):
-        "vec's original slerp calculator."
+    # Geometric slerp, evaluated in a basis aligned with self.
+    def vec_slerp(self, other, ratio, *, opposite='raise'):
         if not isinstance(other, Vector2):
             other = self.__class__(other)
         if not isinstance(ratio, (int, float)):
             raise TypeError(f"{self.__class__.__name__}: slerp ratio must be int or float")
+        if opposite not in ('raise', 'clockwise', 'counter-clockwise'):
+            raise ValueError("slerp opposite must be 'raise', 'clockwise', or 'counter-clockwise'")
 
         if self is other:
             return self
@@ -1097,31 +1093,51 @@ class Vector2(metaclass=Vector2Metaclass):
             return self
         if ratio == 1:
             return other
+        if self is vector2_zero or other is vector2_zero:
+            raise ValueError("can't slerp a zero vector: it has no direction")
 
-        dot = self.normalized().dot(other.normalized())
-        dot = -1 if (dot < -1) else (1 if (dot > 1) else dot)
+        x, y = self.x, self.y
+        other_x, other_y = other.x, other.y
+        dot = x * other_x + y * other_y
+        cross = x * other_y - y * other_x
+        antiparallel = cross == 0 and dot < 0
+        if cross == 0:
+            if not antiparallel:
+                return self.lerp(other, ratio)
+            if opposite == 'raise':
+                raise ValueError("opposite vectors have no unique slerp arc; select clockwise or counter-clockwise")
+            theta = -pi if opposite == 'clockwise' else pi
+        else:
+            # atan2 retains small departures from pi that acos(dot) loses.
+            theta = atan2(cross, dot)
 
-        if dot == 1:
-            # if dot is 1, theta is 0, so sin(theta) is 0
-            # and we divide by sin(theta), so we divide by 0.
-            # so, when dot is 1, switch to linear interpolation.
-            return self.lerp(other, ratio)
+        self_r, other_r = self.r, other.r
+        angle = theta * ratio
+        cosine, sine = cos(angle), sin(angle)
+        if antiparallel:
+            # The geometric formula is undefined here. The selected arc
+            # rotates the direction while linearly interpolating the length.
+            radius = self_r + (other_r - self_r) * ratio
+            along, across = radius * cosine, radius * sine
+        else:
+            # Rewrite the usual two sine-weighted vectors in the basis
+            # (u, perpendicular(u)), where u = self / |self|:
+            # along = |self| cos(t theta)
+            #       + (|other| - |self|) cot(theta) sin(t theta)
+            # across = |other| sin(t theta).
+            # Equal lengths now describe a circle without subtracting two
+            # enormous, nearly cancelling weighted vectors near pi.
+            along = self_r * cosine
+            if other_r != self_r:
+                along += (other_r - self_r) * (dot / cross) * sine
+            across = other_r * sine
 
-        theta = acos(dot)
-        sin_theta = sin(theta)
-
-        theta_ratio = theta * ratio
-        sin_theta_ratio = sin(theta_ratio)
-
-        self_scale = sin(theta - theta_ratio) / sin_theta
-        other_scale = sin_theta_ratio / sin_theta
-
-        result = (self * self_scale) + (other * other_scale)
-
-        return result
+        unit_x, unit_y = x / self_r, y / self_r
+        return self.__class__(unit_x * along - unit_y * across,
+                              unit_y * along + unit_x * across)
 
 
-    def pygame_slerp(self, other, ratio, *, reflected=None, epsilon=1e-6):
+    def pygame_slerp(self, other, ratio, *, reflected=None, epsilon=1e-6, opposite='raise'):
         "slerp calculator, more or less compatible with how pygame does it."
 
         if not isinstance(other, Vector2):
@@ -1130,6 +1146,9 @@ class Vector2(metaclass=Vector2Metaclass):
             raise TypeError("ratio must be float or int")
         if not isinstance(epsilon, (int, float)):
             raise TypeError("epsilon must be float or int")
+
+        if opposite not in ('raise', 'clockwise', 'counter-clockwise'):
+            raise ValueError("slerp opposite must be 'raise', 'clockwise', or 'counter-clockwise'")
 
         if fabs(ratio) < epsilon:
             return self
@@ -1152,7 +1171,14 @@ class Vector2(metaclass=Vector2Metaclass):
             else:
                 reflected = False
 
-        # if reflected is False, use the symmetric other great circle
+        # Explicit opposite-direction choices take precedence over reflected.
+        # Preserve the default pygame behavior (including its epsilon test).
+        if opposite != 'raise':
+            cross = self.x * other.y - self.y * other.x
+            if cross == 0 and self.dot(other) < 0:
+                return self.vec_slerp(other, ratio, opposite=opposite)
+
+        # If reflected is True, use the alternate arc.
         if reflected:
             subtended_theta -= tau
 
@@ -1166,7 +1192,7 @@ class Vector2(metaclass=Vector2Metaclass):
             # approximate with lerp
             return self.lerp(other, ratio)
         # as subtended_theta converges on -pi
-        if fabs(subtended_theta - pi) < epsilon: # pragma: nocover
+        if fabs(subtended_theta - pi) < epsilon:
             raise ValueError("slerp is undefined when subtended theta is near pi")
 
         base_ratio = ((other.r - self.r) * ratio + self.r) / sin(subtended_theta)
