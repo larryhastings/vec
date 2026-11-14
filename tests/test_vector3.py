@@ -17,6 +17,41 @@ from vec import (Vector2, Vector3, vector3_zero, vector3_1_0_0,
 
 
 class Vector3Tests(unittest.TestCase):
+    def test_result_factory_preserves_identity_and_caches(self):
+        for expected in (vector3_zero, vector3_1_0_0, vector3_0_1_0, vector3_0_0_1):
+            self.assertIs(Vector3(2, 3, 4) - (2-expected.x, 3-expected.y, 4-expected.z), expected)
+        result = Vector3(2, 3, 4) + (5, 6, 7)
+        self.assertEqual(tuple(result), (7, 9, 11))
+        for field in ('r', 'r_squared', '_hash'):
+            with self.assertRaises(AttributeError):
+                object.__getattribute__(result, field)
+        with self.assertRaises(TypeError):
+            result.x = 12
+
+    def test_result_factory_preserves_subclass_construction(self):
+        class Sub(Vector3):
+            calls = []
+
+            def __new__(cls, *args, **kwargs):
+                cls.calls.append((args, kwargs))
+                return super().__new__(cls, *args, **kwargs)
+
+        result = Sub(2, 3, 4) + Vector3(5, 6, 7)
+        self.assertIs(type(result), Sub)
+        self.assertEqual(Sub.calls, [((2, 3, 4), {}), ((7, 9, 11), {})])
+
+    def test_result_factory_preserves_custom_coordinates(self):
+        permitted = vec.permitted_coordinate_types
+        vec.permit_coordinate_type(Decimal)
+        try:
+            for coordinates in ((Decimal(2), 3, 4), (2, Decimal(3), 4), (2, 3, Decimal(4))):
+                result = Vector3(*coordinates) + (5, 6, 7)
+                self.assertEqual(tuple(result), (7, 9, 11))
+                for value, original in zip(result, coordinates):
+                    self.assertIs(type(value), type(original))
+        finally:
+            vec.permitted_coordinate_types = permitted
+
     def assertVectorClose(self, actual, expected, places=12):
         for a, b in zip(actual, expected):
             self.assertAlmostEqual(a, b, places=places)

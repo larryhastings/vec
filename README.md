@@ -694,6 +694,13 @@ scalar.
 
 **next version** *under development*
 
+* Use specialized Cartesian result construction throughout `Vector3`
+  arithmetic, cross products, scaling, rotation, and interpolation, preserving
+  predefined vectors and constructor behavior for subclasses and custom types.
+* Speed up Cartesian result construction in `Vector2` addition, subtraction,
+  `lerp`, `vec_slerp`, and axis-aligned scaling and normalization. Preserve
+  predefined-vector reuse and normal construction for subclasses and custom
+  coordinate types.
 * Replace `Vector2`'s construction metaclass with `__new__`, preserving
   input validation, predefined-vector reuse, and lazy attribute caching.
 * Add `Vector3`: immutable cartesian coordinates, cached lengths and hash,

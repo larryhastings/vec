@@ -132,6 +132,29 @@ permit_coordinate_type(float)
 
 _sentinel = object()
 
+def _vector2_from_xy(cls, x, y):
+    # Fast specialized constructor for cartesian Vector2 objects.
+    # Supports subclass construction and permitted user coordinate types.
+    if cls is not Vector2 or type(x) not in (int, float) or type(y) not in (int, float):
+        return cls(x, y)
+    if not (x or y):
+        return vector2_zero
+    if x == 1:
+        if y == 1:
+            return vector2_1_1
+        if not y:
+            return vector2_1_0
+    elif not x and y == 1:
+        return vector2_0_1
+    result = object.__new__(cls)
+    setattr = object.__setattr__
+    setattr(result, 'x', x)
+    setattr(result, 'y', y)
+    setattr(result, '_cartesian', 2)
+    setattr(result, '_polar', 0)
+    return result
+
+
 class Vector2:
 
     __slots__ = ['x', 'y', 'r', 'theta', 'r_squared', '_cartesian', '_polar', '_hash']
@@ -672,7 +695,7 @@ class Vector2:
                     theta = negate_angle(theta)
                 return self.__class__(r=r, theta=theta)
 
-        return self.__class__(self.x + other.x, self.y + other.y)
+        return _vector2_from_xy(self.__class__, self.x + other.x, self.y + other.y)
 
     def __radd__(self, other):
         return self + other
@@ -703,7 +726,7 @@ class Vector2:
                     theta = negate_angle(theta)
                 return self.__class__(r=r, theta=theta)
 
-        return self.__class__(self.x - other.x, self.y - other.y)
+        return _vector2_from_xy(self.__class__, self.x - other.x, self.y - other.y)
 
     def __rsub__(self, other):
         return (-self) + other
@@ -919,13 +942,13 @@ class Vector2:
                 y = r if self.y > 0 else -r
                 if self.y == y:
                     return self
-                return self.__class__(0, y)
+                return _vector2_from_xy(self.__class__, 0, y)
 
             if not self.y:
                 x = r if self.x > 0 else -r
                 if self.x == x:
                     return self
-                return self.__class__(x, 0)
+                return _vector2_from_xy(self.__class__, x, 0)
 
         if self.r == r:
             return self
@@ -943,12 +966,12 @@ class Vector2:
             if not self.x:
                 if self.y == 1:
                     return self
-                return self.__class__(0, 1 if self.y > 0 else -1)
+                return _vector2_from_xy(self.__class__, 0, 1 if self.y > 0 else -1)
 
             if not self.y:
                 if self.x == 1:
                     return self
-                return self.__class__(1 if self.x > 0 else -1, 0)
+                return _vector2_from_xy(self.__class__, 1 if self.x > 0 else -1, 0)
 
         if self.r == 1:
             return self
@@ -1056,7 +1079,7 @@ class Vector2:
         if ratio == 1:
             return other
 
-        return self.__class__(
+        return _vector2_from_xy(self.__class__,
             self.x + ((other.x - self.x) * ratio),
             self.y + ((other.y - self.y) * ratio),
             )
@@ -1116,7 +1139,7 @@ class Vector2:
             across = other_r * sine
 
         unit_x, unit_y = x / self_r, y / self_r
-        return self.__class__(unit_x * along - unit_y * across,
+        return _vector2_from_xy(self.__class__, unit_x * along - unit_y * across,
                               unit_y * along + unit_x * across)
 
 
@@ -1263,6 +1286,28 @@ object.__setattr__(vector2_1_1, "_polar", 2)
 object.__setattr__(vector2_1_1, "_hash", hash((1, 1)))
 
 
+def _vector3_from_xyz(cls, x, y, z):
+    # Fast specialized constructor for cartesian Vector3 objects.
+    # Supports subclass construction and permitted user coordinate types.
+    if (cls is not Vector3 or type(x) not in (int, float)
+            or type(y) not in (int, float) or type(z) not in (int, float)):
+        return cls(x, y, z)
+    if not (x or y or z):
+        return vector3_zero
+    if x == 1 and not (y or z):
+        return vector3_1_0_0
+    if y == 1 and not (x or z):
+        return vector3_0_1_0
+    if z == 1 and not (x or y):
+        return vector3_0_0_1
+    result = object.__new__(cls)
+    setattr = object.__setattr__
+    setattr(result, 'x', x)
+    setattr(result, 'y', y)
+    setattr(result, 'z', z)
+    return result
+
+
 class Vector3:
     """Immutable Cartesian 3D vector with lazily cached lengths and hash."""
 
@@ -1366,7 +1411,7 @@ class Vector3:
         return self
 
     def __neg__(self):
-        return self.__class__(-self.x, -self.y, -self.z)
+        return _vector3_from_xyz(self.__class__, -self.x, -self.y, -self.z)
 
     def __add__(self, other):
         if not isinstance(other, Vector3):
@@ -1375,7 +1420,7 @@ class Vector3:
             return self
         if not self:
             return other
-        return self.__class__(self.x + other.x, self.y + other.y, self.z + other.z)
+        return _vector3_from_xyz(self.__class__, self.x + other.x, self.y + other.y, self.z + other.z)
 
     def __radd__(self, other):
         return self + other
@@ -1385,7 +1430,7 @@ class Vector3:
             other = self.__class__(other)
         if not other:
             return self
-        return self.__class__(self.x - other.x, self.y - other.y, self.z - other.z)
+        return _vector3_from_xyz(self.__class__, self.x - other.x, self.y - other.y, self.z - other.z)
 
     def __rsub__(self, other):
         return (-self) + other
@@ -1397,7 +1442,7 @@ class Vector3:
             return self
         if scalar == 0:
             return vector3_zero
-        return self.__class__(self.x * scalar, self.y * scalar, self.z * scalar)
+        return _vector3_from_xyz(self.__class__, self.x * scalar, self.y * scalar, self.z * scalar)
 
     def __rmul__(self, scalar):
         return self * scalar
@@ -1409,7 +1454,7 @@ class Vector3:
             raise ZeroDivisionError("Vector3 division by zero")
         if scalar == 1:
             return self
-        return self.__class__(self.x / scalar, self.y / scalar, self.z / scalar)
+        return _vector3_from_xyz(self.__class__, self.x / scalar, self.y / scalar, self.z / scalar)
 
     def almost_equal(self, other, places):
         if not isinstance(other, Vector3):
@@ -1434,7 +1479,7 @@ class Vector3:
         if length == r:
             return self
         # Divide each coordinate first rather than forming a reciprocal.
-        result = self.__class__((self.x / length) * r,
+        result = _vector3_from_xyz(self.__class__, (self.x / length) * r,
                                 (self.y / length) * r,
                                 (self.z / length) * r)
         # The requested length is already known. Future reads remain native
@@ -1456,7 +1501,7 @@ class Vector3:
     def cross(self, other):
         if not isinstance(other, Vector3):
             other = self.__class__(other)
-        return self.__class__(self.y*other.z - self.z*other.y,
+        return _vector3_from_xyz(self.__class__, self.y*other.z - self.z*other.y,
                               self.z*other.x - self.x*other.z,
                               self.x*other.y - self.y*other.x)
 
@@ -1488,7 +1533,7 @@ class Vector3:
         #                     + k*(k dot v)*(1-cos(t)).
         cross = axis.cross(self)
         parallel = axis.dot(self) * (1 - cosine)
-        return self.__class__(self.x*cosine + cross.x*sine + axis.x*parallel,
+        return _vector3_from_xyz(self.__class__, self.x*cosine + cross.x*sine + axis.x*parallel,
                               self.y*cosine + cross.y*sine + axis.y*parallel,
                               self.z*cosine + cross.z*sine + axis.z*parallel)
 
@@ -1501,7 +1546,7 @@ class Vector3:
             return self
         if ratio == 1:
             return other
-        return self.__class__(self.x + (other.x - self.x)*ratio,
+        return _vector3_from_xyz(self.__class__, self.x + (other.x - self.x)*ratio,
                               self.y + (other.y - self.y)*ratio,
                               self.z + (other.z - self.z)*ratio)
 
@@ -1560,7 +1605,7 @@ class Vector3:
         angle = theta * ratio
         cosine, sine = cos(angle), sin(angle)
         radius = self_r + (other_r - self_r)*ratio
-        return self.__class__((unit.x*cosine + tangent.x*sine)*radius,
+        return _vector3_from_xyz(self.__class__, (unit.x*cosine + tangent.x*sine)*radius,
                               (unit.y*cosine + tangent.y*sine)*radius,
                               (unit.z*cosine + tangent.z*sine)*radius)
 

@@ -63,6 +63,54 @@ class FalseSentinel:
 places = 14
 
 class VecTests(unittest.TestCase):
+    def test_cartesian_results_preserve_constructor_behavior(self):
+        # Exercise result construction through public arithmetic operations.
+        for x, y in ((0, 0), (1, 0), (0, 1), (1, 1), (2, 3),
+                     (-0., 0.), (float('inf'), 2), (float('nan'), 2)):
+            with self.subTest(x=x, y=y):
+                result = Vector2(2, 3) + (x - 2, y - 3)
+                expected = Vector2(x, y)
+                if (x, y) in ((0, 0), (1, 0), (0, 1), (1, 1)):
+                    self.assertIs(result, expected)
+                else:
+                    for field in ('x', 'y'):
+                        a, b = getattr(result, field), getattr(expected, field)
+                        if isnan(b):
+                            self.assertTrue(isnan(a))
+                        else:
+                            self.assertEqual(a, b)
+                    self.assertEqual((result._cartesian, result._polar), (2, 0))
+                    for field in ('r', 'theta', 'r_squared', '_hash'):
+                        with self.assertRaises(AttributeError):
+                            object.__getattribute__(result, field)
+
+    def test_cartesian_results_preserve_subclass_constructor(self):
+        class Sub(Vector2):
+            calls = []
+
+            def __new__(cls, *args, **kwargs):
+                cls.calls.append((args, kwargs))
+                return super().__new__(cls, *args, **kwargs)
+
+        v = Sub(3, 4)
+        result = v + Vector2(2, 3)
+        self.assertIs(type(result), Sub)
+        self.assertEqual(Sub.calls, [((3, 4), {}), ((5, 7), {})])
+        self.assertEqual(result, Vector2(5, 7))
+
+    def test_cartesian_results_preserve_custom_coordinates(self):
+        from decimal import Decimal
+        permitted = vec.permitted_coordinate_types
+        vec.permit_coordinate_type(Decimal)
+        try:
+            for coordinates in ((Decimal(3), 4), (3, Decimal(4))):
+                result = Vector2(*coordinates) + Vector2(2, 3)
+                self.assertEqual((result.x, result.y), (5, 7))
+                self.assertIs(type(result.x), type(coordinates[0]))
+                self.assertIs(type(result.y), type(coordinates[1]))
+        finally:
+            vec.permitted_coordinate_types = permitted
+
 
     def assertAlmostEqualVector(self, v1, v2):
         self.assertTrue(v1.almost_equal(v2, places=places), f"v1 ({v1}) is not almost equal to v2 ({v2})")
